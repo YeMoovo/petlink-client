@@ -1,5 +1,30 @@
 # 变更记录
 
+## 0.4.5 — 2026-11-01
+
+### 修复
+
+- **便携数据目录优先级**：`PETLINK_DATA_DIR` / `PORTABLE_EXECUTABLE_DIR` / exe 旁
+  `petlink-data.txt` 现在优先于 `DSH_HOME`，修复「从 D 盘启动却把数据写回 C 盘 `.dsh`」；
+- **Chromium userData 目录**：启动前先 `mkdir` 再 `app.setPath('userData')`，避免窗口出现前退出；
+- **0.4.5 起统一使用 zip 分发**：zip 内包含 Electron 运行时、`app.asar`、素材与启动说明，
+  最终用户不需要 Node / npm / pnpm / Electron。
+
+### 为什么是 zip，不再是单文件 exe
+
+- exe 是 NSIS 自解压壳，每次启动都要把约 400MB 解压到 `%TEMP%`，首次可能几十秒无窗口；
+- 数据目录依赖 `PORTABLE_EXECUTABLE_DIR`，容易回退到 C 盘，已实际出现；
+- 进程路径在临时目录，日志与数据不好排查；
+- zip 解压一次即可，启动是正常 Electron 速度，数据固定在 `<解压目录>/PetLinkData`。
+
+### 端口与多实例说明
+
+- 应用模式本来就是 `listen(0)` 随机空闲端口，这是设计，不是端口被吃后的漂移；
+- CLI 模式默认 3080，被占用才向后扫描；
+- 同一数据目录有 `instance.lock`，重复启动会退出，不会起第二个 WebUI；
+- 测试阶段出现的多个后台实例，是调试时不同数据目录的 portable 副本/进程残留，
+  不是业务代码的端口分配缺陷；0.4.5 已清理并统一 zip 分发，避免多副本。
+
 ## 0.4.3 — 2026-11-01
 
 本轮按安全审计优先修前三条，其余保留为已知问题。

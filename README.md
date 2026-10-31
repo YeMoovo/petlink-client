@@ -25,26 +25,27 @@ AstrBot（人设 / 记忆 / 模型）
 - 设置页带登录密码，令牌只显示掩码，支持一键生成与复制；
 - 单实例、断桥提示、20 字（可配）截断。
 
-## 快速开始
+## 快速开始（zip 绿色版）
 
 1. 在 AstrBot 安装 [astrbot_plugin_petlink](https://github.com/YeMoovo/astrbot_plugin_petlink)，
    配置 `device_token` / `device_username`；
-2. 启动 PetLink 客户端：
-
-   ```bash
-   npm install
-   npm run standalone
-   ```
-
-   或使用 Release 里的 `PetLink.exe`（绿色版）；
-3. 首次启动会自动打开设置页：
-
-   ```
-   http://127.0.0.1:3080/standalone-settings/
-   ```
+2. 下载 Release 里的 `PetLink-<版本>-win-x64.zip`，**完整解压**到可写目录，例如
+   `D:\PetLink\`；不要在压缩包里直接双击，也不要放 `C:\Program Files`；
+3. 双击 `PetLink.exe`；
+4. 首次启动会自动打开设置页（端口由本机随机分配，以实际打开地址为准）：
 
    设置登录密码 → 填插件地址与配对令牌 → 测试连接 → 保存；
-4. 右键桌宠 →「打开 AI 设置」可继续配置模型、碎碎念与身份。
+
+5. 右键桌宠 →「打开 AI 设置」可继续配置模型、碎碎念与身份。
+
+> zip 已包含 Electron 运行时与全部业务依赖，不需要安装 Node、npm、pnpm 或 Electron。
+
+### 为什么用 zip，而不是单文件 exe
+
+- 单文件 exe 是 NSIS 自解压壳：每次启动都要把约 400MB 解压到 `%TEMP%`，首次可能几十秒没有窗口；
+- 数据目录依赖 `PORTABLE_EXECUTABLE_DIR`，容易回退到 C 盘；
+- 进程路径在临时目录，日志与数据不好排查；
+- zip 解压一次即可，启动就是正常 Electron 速度，数据固定在 `<解压目录>/PetLinkData`。
 
 ## 开发
 
@@ -67,6 +68,14 @@ npm run dist          # 打 Windows 解包目录（dist-app/）
 - 只有 `PetLinkData` 不可写时，才回退到 `~/.dsh` 并打 warning
 
 `remote.json`、`client-auth.json`、`memory.json`、`logs.txt` 都在这个目录里。
+
+## 端口与多实例
+
+- 应用模式使用系统分配的**随机空闲端口**，不会占用固定 3080；
+- CLI 模式默认 `3080`，被占用时向后扫描最多 25 个端口；
+- 同一数据目录有 `instance.lock`，重复启动会直接退出，不会起第二个 WebUI；
+- 不同数据目录/不同 portable 副本会各自启动，端口互不影响；
+- 设置页地址以启动日志/桌宠菜单打开的实际地址为准，不要长期收藏随机端口。
 
 ## 安全
 
