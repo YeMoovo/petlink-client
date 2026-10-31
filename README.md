@@ -1,7 +1,7 @@
 # PetLink 桌宠客户端
 
 PetLink 是一个可以独立运行的桌面宠物客户端：桌宠住在桌面上，对话、碎碎念和余额由
-AstrBot 侧的 [astrbot_plugin_petlink](https://github.com/PC2005-cloud/astrbot_plugin_petlink)
+AstrBot 侧的 [astrbot_plugin_petlink](https://github.com/YeMoovo/astrbot_plugin_petlink)
 转发给 AstrBot，再交给大模型。
 
 ```
@@ -27,7 +27,7 @@ AstrBot（人设 / 记忆 / 模型）
 
 ## 快速开始
 
-1. 在 AstrBot 安装 [astrbot_plugin_petlink](https://github.com/PC2005-cloud/astrbot_plugin_petlink)，
+1. 在 AstrBot 安装 [astrbot_plugin_petlink](https://github.com/YeMoovo/astrbot_plugin_petlink)，
    配置 `device_token` / `device_username`；
 2. 启动 PetLink 客户端：
 
