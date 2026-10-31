@@ -41,8 +41,9 @@ runtime/electron-helper/shared-core.js
 # ── PetLink 应用打包产物（electron-builder 输出，`node scripts/dist.mjs` 可重生）──
 dist-app/
 
-# ── IDE / 编辑器 ──
-.idea/
+# ── 本地运行时数据（便携数据目录，绝不入库）──
+PetLinkData/
+*.log
 .vscode/
 *.swp
 
