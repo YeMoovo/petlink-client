@@ -74,7 +74,11 @@ if (process.platform === 'win32') {
   app.setAppUserModelId(APP_MODE ? 'com.dsh.pet.app' : 'com.dsh.pet.helper');
 }
 // 应用模式只改数据目录、不改应用名：共用同一个 userData 时两个 Chromium 进程会抢同一份 profile 互踢。
-if (APP_MODE) app.setPath('userData', path.join(app.getPath('appData'), 'dsh-pet'));
+// userData 跟随数据目录（便携版在 exe 同盘），避免配置在 D 盘、Chromium profile 还在 C 盘。
+if (APP_MODE) {
+  const dataHome = process.env.PETLINK_DATA_DIR || process.env.DSH_HOME;
+  app.setPath('userData', path.join(dataHome || app.getPath('appData'), 'petlink-user-data'));
+}
 
 /** DPI 探测子进程模式：不建窗口，只把主屏 scaleFactor 打到 stdout 就退出（见 probePrimaryScale） */
 const DPI_PROBE = process.env.DSH_PET_DPI_PROBE === '1';

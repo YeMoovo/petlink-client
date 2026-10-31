@@ -47,6 +47,7 @@ interface ElectronApp {
   whenReady(): Promise<void>;
   requestSingleInstanceLock(): boolean;
   isPackaged: boolean;
+  setPath(name: string, path: string): void;
   exit(code?: number): void;
   on(event: 'web-contents-created', listener: (event: unknown, contents: WebContentsLike) => void): void;
   on(event: 'second-instance', listener: () => void): void;
@@ -64,6 +65,13 @@ const packageRoot = resolve(here, '..');
 const helperMain = join(packageRoot, 'runtime', 'electron-helper', 'main.js');
 
 const log = (message: string): void => console.log(`[petlink-app] ${message}`);
+
+// Chromium 的 userData 也要跟着数据目录走，否则配置在 D 盘、缓存还在 C 盘。
+const earlyHome = resolveRuntimeHome({
+  packagedDir: app.isPackaged ? dirname(process.execPath) : undefined,
+});
+process.env.DSH_HOME = earlyHome.home;
+app.setPath('userData', join(earlyHome.home, 'user-data'));
 
 /** 单实例：第二次双击直接退出（共用 userData 的 Chromium profile 会互踢） */
 const locked = app.requestSingleInstanceLock();
