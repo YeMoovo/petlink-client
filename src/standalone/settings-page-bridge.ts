@@ -15,8 +15,8 @@ export const bridgeSettingsPage = `<!doctype html>
 <p class="hint">密码只保存在本机，用于保护这个设置页。忘记后删除 <code>client-auth.json</code> 重新设置。</p>
 <form id="setup-form"><label for="su-user">用户名</label><input id="su-user" autocomplete="username" required maxlength="64">
 <label for="su-pass">密码（至少 8 位）</label><div class="token-field"><input id="su-pass" type="password" autocomplete="new-password" required minlength="8" maxlength="128"><button type="button" class="token-eye pass-eye" data-target="su-pass" aria-label="显示或隐藏密码"></button></div>
-<label for="su-pass2">再输一次</label><div class="token-field"><input id="su-pass2" type="password" autocomplete="new-password" required minlength="8" maxlength="128"><button type="button" class="token-eye pass-eye" data-target="su-pass2" aria-label="显示或隐藏密码"></button></div>
-<button type="submit">设置并进入</button></form></section>
+<div class="label-row"><label for="su-pass2">再次输入密码</label><span id="pass-mismatch" class="field-error" role="alert"></span></div><div class="token-field"><input id="su-pass2" type="password" autocomplete="new-password" required minlength="8" maxlength="128"><button type="button" class="token-eye pass-eye" data-target="su-pass2" aria-label="显示或隐藏密码"></button></div>
+<button type="submit" class="setup-submit">设置并进入</button></form></section>
 <section id="login" hidden><h2>登录</h2><form id="login-form"><label for="li-user">用户名</label><input id="li-user" autocomplete="username" required>
 <label for="li-pass">密码</label><div class="token-field"><input id="li-pass" type="password" autocomplete="current-password" required><button type="button" class="token-eye pass-eye" data-target="li-pass" aria-label="显示或隐藏密码"></button></div>
 <button type="submit">登录</button></form><p id="login-error" class="error" role="status"></p></section>
@@ -45,7 +45,7 @@ export const bridgeSettingsStyle = `
 *{box-sizing:border-box}body{margin:0;background:var(--water);color:var(--ink);font:16px/1.6 "Microsoft YaHei UI","PingFang SC",sans-serif}
 main{max-width:680px;margin:48px auto;padding:0 24px 40px}header{padding:0 12px 24px}.local{font-size:13px;color:var(--muted);margin:0 0 10px}h1{font-size:30px;margin:0 0 14px}.intro{margin:0;color:var(--muted)}
 section{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:24px 28px;margin-bottom:20px}h2{font-size:20px;margin:0 0 16px}label{display:block;font-weight:600;font-size:14px;margin:14px 0 6px}input,select{display:block;width:100%;min-height:44px;border:1px solid #a5bdcb;border-radius:6px;padding:9px 12px;font:inherit;font-size:15px;background:#fff;color:var(--ink)}
-.hint{font-size:12px;color:var(--muted);margin:7px 0 0}.pair{display:grid;grid-template-columns:1fr 1fr;gap:18px}button{border:0;border-radius:7px;min-height:44px;padding:10px 20px;background:var(--blue);color:#fff;font:600 15px/1.5 inherit;cursor:pointer}button:hover{background:#0b4e73}#logout{background:#fff;color:var(--blue);border:1.5px solid var(--blue);margin-top:14px}#test{background:#fff;color:var(--blue);border:1.5px solid var(--blue);margin-left:10px}
+.hint{font-size:12px;color:var(--muted);margin:7px 0 0}.pair{display:grid;grid-template-columns:1fr 1fr;gap:18px}button{border:0;border-radius:7px;min-height:44px;padding:10px 20px;background:var(--blue);color:#fff;font:600 15px/1.5 inherit;cursor:pointer}button:hover{background:#0b4e73}.label-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.field-error{color:#a13b30;font-size:12px;font-weight:600;min-height:18px}.setup-submit{margin-top:18px}#test{background:#fff;color:var(--blue);border:1.5px solid var(--blue);margin-left:10px}#logout{background:#fff;color:var(--blue);border:1.5px solid var(--blue);margin-top:14px}
 .token-line{display:flex;gap:8px;align-items:center}.token-field{position:relative;flex:1}.token-field input{width:100%;padding-right:44px}.token-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;background:transparent;color:var(--muted);cursor:pointer;border-radius:6px;display:grid;place-items:center}.token-eye:hover,.token-eye:active{background:transparent;color:var(--blue)}.token-eye:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
 .token-line>button{min-height:44px;padding:8px 16px;background:#fff;color:var(--blue);border:1.5px solid var(--blue)}.token-line>button[hidden]{display:none}.token-line>button:disabled{opacity:.45;cursor:not-allowed}
 .test-result{font-size:13px;color:var(--muted)}.test-result.ok{color:#1a7f37;font-weight:600}.test-result.err{color:#a13b30}footer{margin-top:22px}#status{font-size:13px;min-height:22px;margin:14px 0 0;color:var(--blue)}#status[data-error=true]{color:#a13b30}.error{color:#a13b30;font-size:13px}
@@ -243,11 +243,21 @@ export const bridgeSettingsScript = `
     } catch (error) { fail(error); show('login'); }
   }
 
+  get('su-pass2').addEventListener('input', () => {
+    get('pass-mismatch').textContent = '';
+  });
+
   get('setup-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     const username = get('su-user').value.trim();
     const password = get('su-pass').value;
-    if (password !== get('su-pass2').value) return fail('两次输入的密码不一致');
+    const mismatch = get('pass-mismatch');
+    if (password !== get('su-pass2').value) {
+      mismatch.textContent = '两次输入的密码不一致';
+      get('su-pass2').focus();
+      return;
+    }
+    mismatch.textContent = '';
     try {
       await request('/standalone-settings/password', {
         method: 'POST',

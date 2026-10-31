@@ -14,7 +14,7 @@ import type { AddressInfo } from 'node:net';
 import type { RegisteredRoute } from '../standalone/context.ts';
 import { boundedRequest, MAX_REQUEST_BYTES, MAX_SETTINGS_BYTES } from '../standalone/request-body.ts';
 import { rejectRequest, type RequestSecurity } from '../standalone/request-security.ts';
-import { settingsHandler, testHandler, type StandaloneServerOptions } from '../standalone/server.ts';
+import { DEFAULT_STANDALONE_PORT, PORT_SCAN_LIMIT, settingsHandler, testHandler, type StandaloneServerOptions } from '../standalone/server.ts';
 import type { BridgeSettingsHandler } from '../standalone/bridge-settings-handler.ts';
 import { settingsPage, settingsScript, settingsStyle } from '../standalone/settings-page.ts';
 
@@ -36,6 +36,7 @@ interface RouterDeps {
 export function startRouter(
   routes: RegisteredRoute[],
   deps: RouterDeps,
+  preferredPort = DEFAULT_STANDALONE_PORT,
 ): Promise<{ port: number; close: () => Promise<void> }> {
   const settings = settingsHandler(deps.ai);
   const tester = testHandler(deps.ai);
@@ -136,17 +137,31 @@ export function startRouter(
   server.on('clientError', (_error, socket) => socket.destroy());
 
   return new Promise((resolvePromise, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      boundPort = (server.address() as AddressInfo).port;
-      resolvePromise({
-        port: boundPort,
-        close: async () => {
-          server.closeAllConnections();
-          await new Promise<void>((done) => server.close(() => done()));
-        },
-      });
-    });
+    const attempt = (port: number): void => {
+      const onError = (error: NodeJS.ErrnoException): void => {
+        server.off('listening', onListening);
+        if (error.code === 'EADDRINUSE' && port + 1 < preferredPort + PORT_SCAN_LIMIT) {
+          attempt(port + 1);
+          return;
+        }
+        reject(error);
+      };
+      const onListening = (): void => {
+        server.off('error', onError);
+        boundPort = (server.address() as AddressInfo).port;
+        resolvePromise({
+          port: boundPort,
+          close: async () => {
+            server.closeAllConnections();
+            await new Promise<void>((done) => server.close(() => done()));
+          },
+        });
+      };
+      server.once('error', onError);
+      server.once('listening', onListening);
+      server.listen(port, '127.0.0.1');
+    };
+    attempt(preferredPort);
   });
 }
 
