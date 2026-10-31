@@ -111,7 +111,7 @@ async function run(logger: StandaloneLogger, options: { port: number }): Promise
   portRef.value = server.port;
   // 首次启动（还没设登录密码）自动打开设置页；设过之后不再打扰。
   if (!hasClientPassword(home)) {
-    const settingsUrl = `http://127.0.0.1:${server.port}/standalone-settings/`;
+    const settingsUrl = `http://127.0.0.1:${server.port}/standalone-settings/#token=${encodeURIComponent(security.token)}`;
     logger.info(`[petlink] 首次使用：已打开浏览器设置登录密码 ${settingsUrl}`);
     openBrowser(settingsUrl);
   }

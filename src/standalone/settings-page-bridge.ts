@@ -57,6 +57,8 @@ export const bridgeSettingsScript = `
 (() => {
   const get = (id) => document.getElementById(id);
   let auth = '';
+  // 首次设置密码也要带本次运行的令牌；URL 片段由启动器写入，只在内存里用一次。
+  const pageToken = new URLSearchParams(location.hash.slice(1)).get('token') || '';
   const el = { setup: get('setup'), login: get('login'), panel: get('panel'), status: get('status') };
   const b64 = (text) => {
     const bytes = new TextEncoder().encode(text);
@@ -64,7 +66,7 @@ export const bridgeSettingsScript = `
     for (const byte of bytes) binary += String.fromCharCode(byte);
     return btoa(binary);
   };
-  const headers = () => ({ ...(auth ? { Authorization: 'Basic ' + auth } : {}) });
+  const headers = () => ({ ...(pageToken ? { 'X-DSH-Pet-Token': pageToken } : {}), ...(auth ? { Authorization: 'Basic ' + auth } : {}) });
   const show = (which) => { for (const key of ['setup', 'login', 'panel']) el[key].hidden = key !== which; };
   const fail = (error) => { el.status.textContent = String(error && error.message ? error.message : error); el.status.dataset.error = 'true'; };
   const ok = (text) => { el.status.textContent = text; el.status.dataset.error = 'false'; };

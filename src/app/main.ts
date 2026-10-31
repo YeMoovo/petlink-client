@@ -178,7 +178,7 @@ async function boot(): Promise<void> {
   });
   port = server.port;
   if (!hasClientPassword(dshHomeDir())) {
-    const settingsUrl = `http://127.0.0.1:${port}/standalone-settings/`;
+    const settingsUrl = `http://127.0.0.1:${port}/standalone-settings/#token=${encodeURIComponent(security.token)}`;
     log(`首次使用：打开浏览器设置登录密码 ${settingsUrl}`);
     openBrowser(settingsUrl);
   }

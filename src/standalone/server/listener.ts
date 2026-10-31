@@ -35,7 +35,9 @@ function dispatch(
         rejectRequest(res, 405, '仅支持 GET');
         return;
       }
-      sendJson(res, 200, options.status?.() ?? { name: 'dsh-pet-standalone' }, true);
+      // 公开只回 ok；详细状态（插件、tokens 数量、上游地址）必须带进程令牌。
+      const detailed = shutdownSecurity !== undefined && tokenMatches(req, shutdownSecurity.token);
+      sendJson(res, 200, detailed ? (options.status?.() ?? { ok: true }) : { ok: true }, true);
       return;
     }
     if (pathname === '/shutdown') {
@@ -94,6 +96,13 @@ function dispatch(
       fail(res, error, options.logger);
     }
   };
+}
+
+/** 请求头令牌是否与本次运行令牌一致；长度不同直接失败，比较本身用定时安全。 */
+function tokenMatches(req: IncomingMessage, expected: string): boolean {
+  const supplied = req.headers['x-dsh-pet-token'];
+  if (typeof supplied !== 'string' || supplied.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
 }
 
 /**

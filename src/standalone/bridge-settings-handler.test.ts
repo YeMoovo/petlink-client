@@ -45,8 +45,7 @@ test('首次状态、设置密码、登录后读配置', async () => {
   const home = tempHome();
   try {
     const controller = new BridgeController(null);
-    const handler = createBridgeSettingsHandler({ home, controller, log: () => {} });
-
+    const handler = createBridgeSettingsHandler({ home, controller, log: () => {}, securityToken: 'run-token' });
     let res = await call(handler, 'GET', '/standalone-settings/status');
     assert.equal(res.status, 200);
     assert.equal(JSON.parse(res.body).hasPassword, false);
@@ -54,7 +53,7 @@ test('首次状态、设置密码、登录后读配置', async () => {
     res = await call(handler, 'POST', '/standalone-settings/password', {
       username: 'owner',
       password: 'secret-123',
-    });
+    }, { 'x-dsh-pet-token': 'run-token' });
     assert.equal(res.status, 200);
 
     res = await call(handler, 'GET', '/standalone-settings/config');

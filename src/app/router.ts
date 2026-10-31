@@ -7,6 +7,7 @@
  * @module dsh-pet/src/app/router
  */
 
+import { timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -84,8 +85,20 @@ export function startRouter(
           return;
         }
         if (asset) sendText(res, 200, asset[1], asset[0]);
-        else if (url.pathname === '/health')
-          sendText(res, 200, 'application/json', JSON.stringify(deps.status(boundPort)));
+        else if (url.pathname === '/health') {
+          const token = deps.security.token;
+          const supplied = request.headers['x-dsh-pet-token'];
+          const detailed =
+            typeof supplied === 'string' &&
+            supplied.length === token.length &&
+            timingSafeEqual(Buffer.from(supplied), Buffer.from(token));
+          sendText(
+            res,
+            200,
+            'application/json',
+            JSON.stringify(detailed ? deps.status(boundPort) : { ok: true }),
+          );
+        }
         else sendText(res, 200, 'text/html', deps.landingPage(boundPort));
         return;
       }

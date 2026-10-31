@@ -13,6 +13,7 @@ import { checkBasicAuth, hasClientPassword, setClientPassword } from './client-a
 import { BridgeController } from './bridge-controller.ts';
 import { readBridgeSettings, saveBridgeSettings, type BridgeSettingsPatch } from './bridge-settings.ts';
 import { bridgeSettingsPage, bridgeSettingsScript, bridgeSettingsStyle } from './settings-page-bridge.ts';
+import { MAX_SETTINGS_BYTES } from './request-body.ts';
 import { setTextLimit } from '../shared/text-clip.ts';
 
 /** 处理结果：true 表示这个请求已由设置页接管。 */
@@ -27,7 +28,7 @@ export interface BridgeSettingsOptions {
   securityToken?: string;
 }
 
-const MAX_BODY = 64 * 1024;
+const MAX_BODY = MAX_SETTINGS_BYTES;
 
 /** 创建设置页处理器。 */
 export function createBridgeSettingsHandler(options: BridgeSettingsOptions): BridgeSettingsHandler {
@@ -74,10 +75,12 @@ export function createBridgeSettingsHandler(options: BridgeSettingsOptions): Bri
     }
 
     if (path === '/standalone-settings/password' && method === 'POST') {
-      if (hasClientPassword(home) && !authorized(req)) {
+      // 首次设置也必须持有本次运行的进程令牌，避免端口被扫到后被人抢先设密码。
+      if (!authorized(req)) {
         return unauthorized(res);
       }
-      const body = await readJson(req);
+      const body = await readSettingsJson(req, res);
+      if (!body) return true;
       const username = typeof body.username === 'string' ? body.username.trim() : '';
       const password = typeof body.password === 'string' ? body.password : '';
       try {
@@ -103,7 +106,8 @@ export function createBridgeSettingsHandler(options: BridgeSettingsOptions): Bri
       }
       if (method === 'GET') return sendJson(res, 200, readBridgeSettings(home, true));
       if (method === 'POST') {
-        const body = await readJson(req);
+        const body = await readSettingsJson(req, res);
+        if (!body) return true;
         const patch: BridgeSettingsPatch = {
           ...(typeof body.baseUrl === 'string' ? { baseUrl: body.baseUrl } : {}),
           ...(typeof body.token === 'string' ? { token: body.token } : {}),
@@ -148,6 +152,24 @@ function sendJson(res: ServerResponse, status: number, body: unknown): true {
   return true;
 }
 
+class BodyTooLargeError extends Error {}
+
+/** 读设置页 JSON；超过 16KB 先回 413，再让上层收尾。 */
+async function readSettingsJson(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<Record<string, unknown> | null> {
+  try {
+    return await readJson(req);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      sendJson(res, 413, { error: 'payload_too_large' });
+      return null;
+    }
+    throw error;
+  }
+}
+
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -162,8 +184,7 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
       const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       size += buffer.length;
       if (size > MAX_BODY) {
-        finish(() => reject(new Error('请求体过大')));
-        req.destroy();
+        finish(() => reject(new BodyTooLargeError('payload_too_large')));
         return;
       }
       chunks.push(buffer);
