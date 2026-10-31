@@ -7,7 +7,7 @@
  * @module dsh-pet/src/standalone/portable-home
  */
 
-import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -25,6 +25,8 @@ export interface RuntimeHomeOptions {
   env?: NodeJS.ProcessEnv;
   /** Electron 打包后 exe 所在目录（非 portable 形态时使用）。 */
   packagedDir?: string;
+  /** 放置 petlink-data.txt 的 exe 目录；文件内容为数据目录绝对路径。 */
+  exeDir?: string;
   /** 最终回退目录，默认 ~/.dsh。 */
   fallback?: string;
 }
@@ -38,15 +40,30 @@ const DATA_FOLDER = 'PetLinkData';
  */
 export function resolveRuntimeHome(options: RuntimeHomeOptions = {}): RuntimeHome {
   const env = options.env ?? process.env;
-  if (env.DSH_HOME) return { home: env.DSH_HOME, portable: false };
 
-  const candidates: string[] = [];
-  if (env.PETLINK_DATA_DIR) candidates.push(env.PETLINK_DATA_DIR);
-  if (env.PORTABLE_EXECUTABLE_DIR) candidates.push(join(env.PORTABLE_EXECUTABLE_DIR, DATA_FOLDER));
-  if (options.packagedDir) candidates.push(join(options.packagedDir, DATA_FOLDER));
+  // 便携/显式数据目录优先于 DSH_HOME：否则从 DSH 环境启动 portable 时会落回 C 盘。
+  const candidates: Array<{ dir: string; portable: boolean }> = [];
+  if (env.PETLINK_DATA_DIR) candidates.push({ dir: env.PETLINK_DATA_DIR, portable: true });
+  if (env.PORTABLE_EXECUTABLE_DIR)
+    candidates.push({ dir: join(env.PORTABLE_EXECUTABLE_DIR, DATA_FOLDER), portable: true });
+
+  // 程序所在盘不可执行时，把程序放 C/D、数据继续放 J：exe 旁的 sidecar 指定数据目录。
+  if (options.exeDir) {
+    const sidecar = join(options.exeDir, 'petlink-data.txt');
+    if (existsSync(sidecar)) {
+      try {
+        const target = readFileSync(sidecar, 'utf8').replace(/^\uFEFF/, '').trim();
+        if (target) candidates.push({ dir: target, portable: true });
+      } catch {
+        /* 读不到就继续走便携默认路径 */
+      }
+    }
+  }
+  if (env.DSH_HOME) candidates.push({ dir: env.DSH_HOME, portable: false });
+  if (options.packagedDir) candidates.push({ dir: join(options.packagedDir, DATA_FOLDER), portable: true });
 
   for (const candidate of candidates) {
-    if (isWritable(candidate)) return { home: candidate, portable: true };
+    if (isWritable(candidate.dir)) return { home: candidate.dir, portable: candidate.portable };
   }
 
   const fallback = options.fallback ?? join(env.USERPROFILE || env.HOME || homedir(), '.dsh');
@@ -54,7 +71,7 @@ export function resolveRuntimeHome(options: RuntimeHomeOptions = {}): RuntimeHom
     home: fallback,
     portable: false,
     ...(candidates.length > 0
-      ? { warning: `PetLinkData 不可写，已回退到 ${fallback}；换到可写目录或设置 PETLINK_DATA_DIR` }
+      ? { warning: `数据目录都不可写，已回退到 ${fallback}；设置 PETLINK_DATA_DIR 或换可写盘` }
       : {}),
   };
 }

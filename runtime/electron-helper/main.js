@@ -24,6 +24,7 @@ try {
 }
 const { app, BrowserWindow, ipcMain, screen, shell, protocol, Tray, Menu, nativeImage, powerMonitor } = electronApi;
 const path = require('node:path');
+const fs = require('node:fs');
 const fsPromises = require('node:fs/promises');
 // 点击穿透兜底通道的纯判定（不依赖 Electron 的 forward 鼠标钩子；见文件头）
 // Linux 专用：X11 指针实时查询。穿透窗收不到鼠标事件，Chromium 的 screen.getCursorScreenPoint()
@@ -77,7 +78,10 @@ if (process.platform === 'win32') {
 // userData 跟随数据目录（便携版在 exe 同盘），避免配置在 D 盘、Chromium profile 还在 C 盘。
 if (APP_MODE) {
   const dataHome = process.env.PETLINK_DATA_DIR || process.env.DSH_HOME;
-  app.setPath('userData', path.join(dataHome || app.getPath('appData'), 'petlink-user-data'));
+  const userData = path.join(dataHome || app.getPath('appData'), 'petlink-user-data');
+  // app.setPath 要求目录已存在，否则 helper 会在建窗前直接退出。
+  fs.mkdirSync(userData, { recursive: true });
+  app.setPath('userData', userData);
 }
 
 /** DPI 探测子进程模式：不建窗口，只把主屏 scaleFactor 打到 stdout 就退出（见 probePrimaryScale） */

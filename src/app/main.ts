@@ -6,6 +6,7 @@
  * @module dsh-pet/src/app/main
  */
 
+import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -68,9 +69,12 @@ const log = (message: string): void => console.log(`[petlink-app] ${message}`);
 
 // Chromium 的 userData 也要跟着数据目录走，否则配置在 D 盘、缓存还在 C 盘。
 const earlyHome = resolveRuntimeHome({
-  packagedDir: app.isPackaged ? dirname(process.execPath) : undefined,
+  packagedDir: (process as { defaultApp?: boolean }).defaultApp ? undefined : dirname(process.execPath),
+  exeDir: dirname(process.execPath),
 });
 process.env.DSH_HOME = earlyHome.home;
+// app.setPath 要求目录已存在，否则会在窗口出现前直接抛错退出。
+mkdirSync(join(earlyHome.home, 'user-data'), { recursive: true });
 app.setPath('userData', join(earlyHome.home, 'user-data'));
 
 /** 单实例：第二次双击直接退出（共用 userData 的 Chromium profile 会互踢） */
@@ -92,7 +96,8 @@ async function boot(): Promise<void> {
   // 数据目录优先落在 exe 同盘的 PetLinkData，避免 portable 版写 C 盘；
   // 显式 DSH_HOME / PETLINK_DATA_DIR 仍然优先。
   const runtimeHome = resolveRuntimeHome({
-    packagedDir: app.isPackaged ? dirname(process.execPath) : undefined,
+    packagedDir: (process as { defaultApp?: boolean }).defaultApp ? undefined : dirname(process.execPath),
+    exeDir: dirname(process.execPath),
   });
   if (runtimeHome.warning) console.warn(`[petlink] ${runtimeHome.warning}`);
   process.env.DSH_HOME = runtimeHome.home;
