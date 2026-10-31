@@ -70,7 +70,7 @@ test('控制器 reload 后 configured 跟着变', () => {
     baseUrl: 'http://127.0.0.1:18787',
     token: 't',
     username: 'dsh_pet',
-    identityMode: 'custom',
+    identityMode: 'token',
     session: 'main',
     timeoutMs: 5000,
     textLimit: 20,

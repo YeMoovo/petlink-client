@@ -19,7 +19,7 @@ export interface BridgeSettingsView {
   /** 明文令牌：只在已授权的设置页读取时返回，供「小眼睛」显示。 */
   token?: string;
   username: string;
-  identityMode: 'owner' | 'custom';
+  identityMode: 'owner' | 'token';
   session: string;
   timeoutMs: number;
   textLimit: number;
@@ -31,7 +31,7 @@ export interface BridgeSettingsPatch {
   baseUrl?: string;
   token?: string;
   username?: string;
-  identityMode?: 'owner' | 'custom';
+  identityMode?: 'owner' | 'token';
   session?: string;
   timeoutMs?: number;
   textLimit?: number;
@@ -50,7 +50,7 @@ export function readBridgeSettings(home: string, includeToken = false): BridgeSe
       hasToken: false,
       tokenMask: '',
       username: '',
-      identityMode: 'custom',
+      identityMode: 'token',
       session: 'main',
       timeoutMs: 120000,
       textLimit: 20,
@@ -100,7 +100,7 @@ export function saveBridgeSettings(home: string, patch: BridgeSettingsPatch): Br
     baseUrl,
     token,
     username,
-    identityMode: patch.identityMode ?? current?.identityMode ?? 'custom',
+    identityMode: patch.identityMode ?? current?.identityMode ?? 'token',
     session: (patch.session ?? current?.session ?? 'main').trim() || 'main',
     timeoutMs,
     textLimit,

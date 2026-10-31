@@ -21,7 +21,19 @@ export interface BridgeReply {
 export interface BridgeChat {
   chat(text: string, options?: { session?: string; signal?: AbortSignal }): Promise<BridgeReply>;
   health(signal?: AbortSignal): Promise<boolean>;
+  healthDetail?(signal?: AbortSignal): Promise<BridgeHealthDetail>;
 }
+
+/** /health 的可读结果：ready 之外把 auth_state / auth_hint 一起带回来。 */
+export interface BridgeHealthDetail {
+  ok: boolean;
+  ready: boolean;
+  authState?: string;
+  hint?: string;
+}
+
+/** 单次回复的硬上限：防止上游无限 plain 帧把内存吃爆。 */
+const MAX_REPLY_CHARS = 200_000;
 
 /** 单条 SSE 事件的回调；返回 false 表示停止读取。 */
 export type SseHandler = (event: Record<string, unknown>) => boolean | void;
@@ -55,15 +67,15 @@ export async function consumeSse(
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      let index = buffer.indexOf('\n\n');
-      while (index >= 0) {
-        const block = buffer.slice(0, index);
-        buffer = buffer.slice(index + 2);
+      let match = /\r?\n\r?\n/.exec(buffer);
+      while (match) {
+        const block = buffer.slice(0, match.index);
+        buffer = buffer.slice(match.index + match[0].length);
         if (dispatchBlock(block, onEvent)) {
           stopped = true;
           break;
         }
-        index = buffer.indexOf('\n\n');
+        match = /\r?\n\r?\n/.exec(buffer);
       }
     }
   } finally {
@@ -78,7 +90,7 @@ export async function consumeSse(
 
 /** 解析一个 SSE 帧块；返回 true 表示调用方要求停止。 */
 function dispatchBlock(block: string, onEvent: SseHandler): boolean {
-  for (const line of block.split('\n')) {
+  for (const line of block.split(/\r?\n/)) {
     if (!line.startsWith('data:')) continue;
     const raw = line.slice(5).trim();
     if (!raw) continue;
@@ -141,6 +153,9 @@ export function createBridgeChat(config: BridgeAgentConfig, deps: BridgeChatDeps
               sessionId = event.session_id;
             } else if (event.type === 'plain' && typeof event.data === 'string') {
               reply += event.data;
+              if (reply.length > MAX_REPLY_CHARS) {
+                throw new Error(`桥返回内容过长（超过 ${MAX_REPLY_CHARS} 字符）`);
+              }
             } else if (event.type === 'end') {
               return false;
             }
@@ -165,7 +180,7 @@ export function createBridgeChat(config: BridgeAgentConfig, deps: BridgeChatDeps
       }
     },
 
-    async health(signal) {
+    async healthDetail(signal) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 5_000);
       const onAbort = (): void => controller.abort(signal?.reason);
@@ -176,15 +191,32 @@ export function createBridgeChat(config: BridgeAgentConfig, deps: BridgeChatDeps
           signal: controller.signal,
           redirect: 'error',
         });
-        if (!response.ok) return false;
+        if (!response.ok) {
+          return { ok: false, ready: false, authState: `http_${response.status}`, hint: `插件 HTTP ${response.status}` };
+        }
         const body: unknown = await response.json();
-        return Boolean(body && typeof body === 'object' && (body as { ready?: unknown }).ready === true);
-      } catch {
-        return false;
+        const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+        return {
+          ok: true,
+          ready: record.ready === true,
+          ...(typeof record.auth_state === 'string' ? { authState: record.auth_state } : {}),
+          ...(typeof record.auth_hint === 'string' ? { hint: record.auth_hint } : {}),
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          ready: false,
+          authState: 'unreachable',
+          hint: error instanceof Error ? error.message : String(error),
+        };
       } finally {
         clearTimeout(timer);
         signal?.removeEventListener('abort', onAbort);
       }
+    },
+
+    async health(signal) {
+      return (await this.healthDetail?.(signal))?.ready === true;
     },
   };
 }

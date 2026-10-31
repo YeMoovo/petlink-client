@@ -35,13 +35,34 @@ export function createBridgeSettingsHandler(options: BridgeSettingsOptions): Bri
   const { home, controller, log } = options;
   const securityToken = options.securityToken ?? '';
 
-  /** Basic 密码或进程令牌，二选一即可。 */
-  const authorized = (req: IncomingMessage): boolean => {
-    if (checkBasicAuth(req.headers.authorization, home)) return true;
-    if (!securityToken) return false;
-    const supplied = req.headers['x-dsh-pet-token'];
-    if (typeof supplied !== 'string' || supplied.length !== securityToken.length) return false;
-    return timingSafeEqual(Buffer.from(supplied), Buffer.from(securityToken));
+  /** Basic 密码或进程令牌，二选一即可；连续失败 5 次暂停 30 秒。 */
+  let failures = 0;
+  let blockedUntil = 0;
+  const authorized = async (req: IncomingMessage): Promise<boolean> => {
+    if (blockedUntil > Date.now()) return false;
+    if (await checkBasicAuth(req.headers.authorization, home)) {
+      failures = 0;
+      return true;
+    }
+    if (securityToken) {
+      const supplied = req.headers['x-dsh-pet-token'];
+      if (typeof supplied === 'string' && /^[A-Za-z0-9_-]{43}$/.test(supplied)) {
+        const expected = Buffer.from(securityToken);
+        if (supplied.length === expected.length && timingSafeEqual(Buffer.from(supplied), expected)) {
+          failures = 0;
+          return true;
+        }
+      }
+    }
+    if (hasClientPassword(home)) {
+      failures += 1;
+      if (failures >= 5) {
+        blockedUntil = Date.now() + 30_000;
+        failures = 0;
+        log('[petlink] 设置页失败次数过多，暂停 30 秒');
+      }
+    }
+    return false;
   };
 
   return async (req, res, url): Promise<boolean> => {
@@ -68,15 +89,16 @@ export function createBridgeSettingsHandler(options: BridgeSettingsOptions): Bri
     }
 
     if (path === '/standalone-settings/status' && method === 'GET') {
+      if (!(await authorized(req))) return unauthorized(res);
       return sendJson(res, 200, {
         hasPassword: hasClientPassword(home),
-        authenticated: authorized(req),
+        authenticated: await authorized(req),
       });
     }
 
     if (path === '/standalone-settings/password' && method === 'POST') {
       // 首次设置也必须持有本次运行的进程令牌，避免端口被扫到后被人抢先设密码。
-      if (!authorized(req)) {
+      if (!(await authorized(req))) {
         return unauthorized(res);
       }
       const body = await readSettingsJson(req, res);
@@ -84,7 +106,7 @@ export function createBridgeSettingsHandler(options: BridgeSettingsOptions): Bri
       const username = typeof body.username === 'string' ? body.username.trim() : '';
       const password = typeof body.password === 'string' ? body.password : '';
       try {
-        setClientPassword(home, username, password);
+        await setClientPassword(home, username, password);
       } catch (error) {
         return sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
       }
@@ -93,18 +115,23 @@ export function createBridgeSettingsHandler(options: BridgeSettingsOptions): Bri
     }
 
     if (path === '/standalone-settings/test' && method === 'POST') {
-      if (hasClientPassword(home) && !authorized(req)) {
+      if (hasClientPassword(home) && !(await authorized(req))) {
         return unauthorized(res);
       }
-      const ok = await controller.health();
-      return sendJson(res, 200, { ok, configured: controller.configured });
+      const detail = await controller.healthDetail();
+      return sendJson(res, 200, {
+        ok: detail.ready,
+        configured: controller.configured,
+        authState: detail.authState,
+        hint: detail.hint,
+      });
     }
 
     if (path === '/standalone-settings/config') {
-      if (hasClientPassword(home) && !authorized(req)) {
+      if (hasClientPassword(home) && !(await authorized(req))) {
         return unauthorized(res);
       }
-      if (method === 'GET') return sendJson(res, 200, readBridgeSettings(home, true));
+      if (method === 'GET') return sendJson(res, 200, readBridgeSettings(home));
       if (method === 'POST') {
         const body = await readSettingsJson(req, res);
         if (!body) return true;
@@ -112,7 +139,7 @@ export function createBridgeSettingsHandler(options: BridgeSettingsOptions): Bri
           ...(typeof body.baseUrl === 'string' ? { baseUrl: body.baseUrl } : {}),
           ...(typeof body.token === 'string' ? { token: body.token } : {}),
           ...(typeof body.username === 'string' ? { username: body.username } : {}),
-          ...(body.identityMode === 'owner' || body.identityMode === 'custom'
+          ...(body.identityMode === 'owner' || body.identityMode === 'token'
             ? { identityMode: body.identityMode }
             : {}),
           ...(typeof body.session === 'string' ? { session: body.session } : {}),
@@ -124,7 +151,7 @@ export function createBridgeSettingsHandler(options: BridgeSettingsOptions): Bri
           controller.reload(next);
           setTextLimit(next.textLimit);
           log(`[petlink] 桥接设置已更新：${next.baseUrl}（${next.username}/${next.session}，${next.textLimit} 字）`);
-          return sendJson(res, 200, readBridgeSettings(home, true));
+          return sendJson(res, 200, readBridgeSettings(home));
         } catch (error) {
           return sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
         }

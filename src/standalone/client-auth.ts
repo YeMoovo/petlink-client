@@ -6,9 +6,16 @@
  * @module dsh-pet/src/standalone/client-auth
  */
 
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+const scryptAsync = promisify(scrypt) as (
+  password: string,
+  salt: string,
+  keylen: number,
+) => Promise<Buffer>;
 
 interface AuthRecord {
   username: string;
@@ -32,12 +39,12 @@ export function hasClientPassword(home: string): boolean {
  * @param username - 登录名，非空。
  * @param password - 明文密码，至少 6 位。
  */
-export function setClientPassword(home: string, username: string, password: string): void {
+export async function setClientPassword(home: string, username: string, password: string): Promise<void> {
   const name = username.trim();
   if (!name) throw new Error('用户名不能为空');
-  if (password.length < 6) throw new Error('密码至少 6 位');
+  if (password.length < 8) throw new Error('密码至少 8 位');
   const salt = randomBytes(16).toString('hex');
-  const hash = scryptSync(password, salt, 64).toString('hex');
+  const hash = (await scryptAsync(password, salt, 64)).toString('hex');
   const directory = join(home, 'dsh-pet');
   mkdirSync(directory, { recursive: true });
   writeFileSync(clientAuthPath(home), JSON.stringify({ username: name, salt, hash }), { encoding: 'utf8' });
@@ -47,12 +54,12 @@ export function setClientPassword(home: string, username: string, password: stri
  * 校验用户名与密码。
  * @returns 是否匹配。
  */
-export function verifyClientPassword(home: string, username: string, password: string): boolean {
+export async function verifyClientPassword(home: string, username: string, password: string): Promise<boolean> {
   const record = readRecord(home);
   if (!record) return false;
   if (record.username !== username.trim()) return false;
   try {
-    const actual = scryptSync(password, record.salt, 64);
+    const actual = await scryptAsync(password, record.salt, 64);
     const expected = Buffer.from(record.hash, 'hex');
     return actual.length === expected.length && timingSafeEqual(actual, expected);
   } catch {
@@ -66,7 +73,7 @@ export function verifyClientPassword(home: string, username: string, password: s
  * @param home - DSH_HOME。
  * @returns 通过为 true；没设置密码时为 false（调用方按「首次设置」处理）。
  */
-export function checkBasicAuth(header: string | undefined, home: string): boolean {
+export async function checkBasicAuth(header: string | undefined, home: string): Promise<boolean> {
   if (!header || !header.toLowerCase().startsWith('basic ')) return false;
   let decoded: string;
   try {

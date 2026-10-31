@@ -16,11 +16,11 @@ export const settingsPage = `<!doctype html>
 <form id="settings" aria-describedby="privacy">
 <fieldset><legend>连接插件（AstrBot）</legend>
 <label for="bridgeBaseUrl">插件地址（relay）</label><input id="bridgeBaseUrl" type="url" placeholder="http://127.0.0.1:18787" maxlength="2048" spellcheck="false"><p class="hint">AstrBot 插件监听的本机/隧道地址；换端口映射后只改这里。</p>
-<label for="bridgeIdentityMode">身份模式</label><select id="bridgeIdentityMode"><option value="owner">QQ号模式</option><option value="custom">自定义模式</option></select><p class="hint" id="bridgeIdentityHint"></p>
+<label for="bridgeIdentityMode">身份模式</label><select id="bridgeIdentityMode"><option value="owner">QQ号模式</option><option value="token">自定义模式</option></select><p class="hint" id="bridgeIdentityHint"></p>
 <label for="bridgeUsername" id="bridgeUsernameLabel">QQ 号</label><input id="bridgeUsername" maxlength="128" placeholder="请输入QQ号"><p class="hint" id="bridgeUsernameHint"></p>
 <label for="bridgeSession">会话</label><input id="bridgeSession" maxlength="128" placeholder="main"><p class="hint">同一会话保持连续上下文；换一个会话等于开一段新对话。</p>
 <div class="pair"><div><label for="bridgeTextLimit">单条字数上限</label><input id="bridgeTextLimit" type="number" min="1" max="200"><p class="hint">输入与回复都按这个上限截断。</p></div><div><label for="bridgeTimeout">超时（毫秒）</label><input id="bridgeTimeout" type="number" min="5000" max="600000" step="1000"><p class="hint">单次请求最多等多久。</p></div></div>
-<label for="bridgeToken">配对令牌</label><div class="token-line"><div class="token-field"><input id="bridgeToken" type="text" autocomplete="off" placeholder="必须与插件 tokens 那一行等号左边一致" disabled><button type="button" id="bridgeTokenEye" class="token-eye" aria-label="显示或隐藏令牌"></button></div><button type="button" id="bridgeTokenGenerate" disabled>生成</button><button type="button" id="bridgeTokenEdit">修改</button><button type="button" id="bridgeTokenSave" hidden>保存</button></div><p class="hint">这里填插件配置里 <code>tokens</code> 那一行等号左边的值，用于让桌宠通过插件进入 AstrBot；与插件端必须完全一致。</p>
+<label for="bridgeToken">配对令牌</label><div class="token-line"><div class="token-field"><input id="bridgeToken" type="text" autocomplete="off" placeholder="必须与插件 tokens 那一行等号左边一致" disabled><button type="button" id="bridgeTokenEye" class="token-eye" aria-label="显示或隐藏令牌"></button></div><button type="button" id="bridgeTokenGenerate" disabled>生成</button><button type="button" id="bridgeTokenCopy" hidden>复制</button><button type="button" id="bridgeTokenEdit">修改</button><button type="button" id="bridgeTokenSave" hidden>保存</button></div><p class="hint">这里填插件配置里 <code>tokens</code> 那一行等号左边的值，用于让桌宠通过插件进入 AstrBot；与插件端必须完全一致。</p>
 <div class="test-row"><button type="button" id="bridgeTest">测试连接</button><button type="button" id="bridgeSave">保存连接</button><span id="bridgeResult" class="test-result" role="status" aria-live="polite"></span></div>
 </fieldset>
 <fieldset><legend>模型连接</legend>
@@ -196,7 +196,6 @@ export const settingsScript = `
     const owner = get('bridgeIdentityMode').value === 'owner';
     get('bridgeUsernameLabel').textContent = owner ? 'QQ 号' : '身份名称';
     get('bridgeUsername').placeholder = owner ? '请输入QQ号' : '输入用户昵称';
-    get('bridgeUsername').value = '';
     get('bridgeIdentityHint').textContent = owner
       ? 'QQ号模式：与 AstrBot 同一个你，历史与记忆跟 QQ 侧一致。'
       : '自定义模式：独立身份，短期上下文从零开始。';
@@ -216,11 +215,12 @@ export const settingsScript = `
     setBridgeEye(false);
     get('bridgeTokenGenerate').disabled = config.hasToken;
     get('bridgeTokenEdit').hidden = !config.hasToken;
+    get('bridgeTokenCopy').hidden = true;
     get('bridgeTokenSave').hidden = true;
   }
   function applyBridge(config) {
     get('bridgeBaseUrl').value = config.baseUrl || '';
-    get('bridgeIdentityMode').value = config.identityMode || 'custom';
+    get('bridgeIdentityMode').value = config.identityMode || 'token';
     get('bridgeUsername').value = '';
     get('bridgeSession').value = config.session || 'main';
     get('bridgeTextLimit').value = String(config.textLimit || 20);
@@ -254,16 +254,20 @@ export const settingsScript = `
     setBridgeEye(true);
     get('bridgeTokenSave').hidden = false;
     get('bridgeTokenGenerate').disabled = true;
+    get('bridgeTokenCopy').hidden = false;
+    bridgeMessage('已生成新令牌，点击「复制」带走');
+  });
+  get('bridgeTokenCopy').addEventListener('click', async () => {
+    const token = get('bridgeToken').value.trim();
+    if (!token) return;
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(token);
-        bridgeMessage('已生成新令牌并复制到剪贴板');
-      } else {
+      if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(token);
+      else {
         get('bridgeToken').select();
         document.execCommand('copy');
-        bridgeMessage('已生成新令牌并复制到剪贴板');
       }
-    } catch { bridgeMessage('已生成新令牌，请手动复制'); }
+      bridgeMessage('已复制到剪贴板');
+    } catch { bridgeMessage('复制失败，请手动选中复制', true); }
   });
   get('bridgeTokenEdit').addEventListener('click', () => {
     bridgeTokenEditing = true;
@@ -275,6 +279,7 @@ export const settingsScript = `
     setBridgeEye(false);
     get('bridgeTokenEdit').hidden = true;
     get('bridgeTokenSave').hidden = false;
+    get('bridgeTokenCopy').hidden = true;
     get('bridgeTokenGenerate').disabled = false;
     input.focus();
   });
@@ -302,7 +307,7 @@ export const settingsScript = `
   get('bridgeTest').addEventListener('click', async () => {
     try {
       const result = await bridgeRequest('/test', 'POST');
-      bridgeMessage(result.ok ? '连接正常，插件在线' : '插件可达但未就绪（检查令牌/Key）', !result.ok);
+      bridgeMessage(result.ok ? '连接正常，插件在线' : (result.hint || '插件可达但未就绪（检查令牌/Key）'), !result.ok);
     } catch (error) { bridgeMessage(error.message, true); }
   });
   if (!token) { message('请从桌宠菜单或本机启动器打开设置，以获得本次运行的访问凭据。', true); return; }

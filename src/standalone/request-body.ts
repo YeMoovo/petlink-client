@@ -67,5 +67,11 @@ export async function boundedRequest(
     rawHeaders: req.rawHeaders,
     socket: req.socket,
     httpVersion: req.httpVersion,
+    complete: true,
+    readable: true,
+    destroy: () => {},
+    pause: () => {},
+    resume: () => {},
+    isPaused: () => false,
   }) as IncomingMessage;
 }

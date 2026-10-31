@@ -6,7 +6,7 @@
  * @module dsh-pet/src/standalone/bridge-controller
  */
 
-import { createBridgeChat, type BridgeChat, type BridgeReply } from './bridge-chat.ts';
+import { createBridgeChat, type BridgeChat, type BridgeHealthDetail, type BridgeReply } from './bridge-chat.ts';
 import type { BridgeAgentConfig } from './bridge-config.ts';
 
 /** 可热替换的 BridgeChat。 */
@@ -38,6 +38,16 @@ export class BridgeController implements BridgeChat {
 
   health(signal?: AbortSignal): Promise<boolean> {
     return this.client ? this.client.health(signal) : Promise.resolve(false);
+  }
+
+  /** 带 auth_state / auth_hint 的健康检查；未配置时显式返回原因。 */
+  healthDetail(signal?: AbortSignal): Promise<BridgeHealthDetail> {
+    if (!this.client) {
+      return Promise.resolve({ ok: false, ready: false, authState: 'not_configured', hint: '尚未配置远程大脑' });
+    }
+    return this.client.healthDetail
+      ? this.client.healthDetail(signal)
+      : this.client.health(signal).then((ready) => ({ ok: ready, ready }));
   }
 
   /** 代查余额：插件持有上游 Key，客户端只拿归一化钱包。 */

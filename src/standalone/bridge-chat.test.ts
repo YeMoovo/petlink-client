@@ -8,7 +8,7 @@ const config: BridgeAgentConfig = {
   baseUrl: 'http://bridge.test',
   token: 'device-token',
   username: 'dsh_pet',
-  identityMode: 'custom',
+  identityMode: 'token',
   session: 'main',
   timeoutMs: 10_000,
   textLimit: 20,

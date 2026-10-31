@@ -92,6 +92,7 @@ export function createRequestSecurity(): RequestSecurity {
 
 /** 清掉上游写出的宽 CORS 头，并补上安全响应头。 */
 export function secureResponse(res: ServerResponse, pathname?: string): void {
+  // 只在当前响应对象上包装，不修改原型；handler 必须动态取 res.writeHead，不能缓存 bind。
   const writeHead = res.writeHead.bind(res);
   const isPublicOp = pathname === '/' || pathname === '/health';
   res.writeHead = ((status: number, ...args: unknown[]) => {

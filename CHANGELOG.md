@@ -77,3 +77,66 @@
 - Chromium `userData` 同步移到 `PetLinkData/user-data/`；
 - 新增 `PETLINK_DATA_DIR` 覆盖；
 - 客户端版本号 `0.4.3`。
+
+## 0.4.4 — 2026-11-01
+
+继续处理第 4–19 条审计问题。
+
+### 已修复
+
+4. **`/standalone-settings/status` 无鉴权**
+   现在要求 Basic 或进程令牌；页面启动逻辑改为「有令牌/已登录才读 status」，无凭据直接进登录页。
+
+5. **`authorized()` 长度比较泄露令牌长度、未统一形状校验**
+   改为先过 `^[A-Za-z0-9_-]{43}$`，再定时安全比较；非法形状直接拒绝。
+
+6. **设置页把完整令牌回显到 `input.value`，生成时自动写剪贴板**
+   - 服务端不再向页面返回完整令牌，锁定态只显示掩码；
+   - 眼睛只在编辑/新生成时切换明文；
+   - 去掉自动复制，新增显式「复制」按钮，复制的是当前输入内容；
+   - 生成后提示「点击复制带走」。
+
+7. **`identityMode` 枚举与插件 `identity_mode` 不一致**
+   客户端统一为 `owner | token`；`自定义模式` 发送 `token`，与插件默认值一致。
+
+8. **SSE 只按 `\n\n` 分帧**
+   正则改为 `/\r?\n\r?\n/`，帧内行按 `/\r?\n/` 切；兼容 Windows 代理/网关的 CRLF。
+
+9. **`consumeSse` 没有响应上限**
+   单次回复超过 200,000 字符立即抛错，避免无限 `plain` 帧吃内存。
+
+10. **`health()` 丢弃 `auth_state` / `auth_hint`**
+    新增 `healthDetail()`，设置页「测试连接」直接显示插件的 `auth_hint`（例如 scope 不足、路径公开、匿名对照失败）。
+
+11. **假 `IncomingMessage` 缺方法**
+    `boundedRequest` 回放对象补上 `complete`、`readable`、`destroy`、`pause`、`resume`、`isPaused`。
+
+12. **OPTIONS 在鉴权前返回 204**
+    复核：监听器与 app router 都是先 `security.authorize()` 再进入 dispatch；未带令牌的 OPTIONS 已在鉴权层被拒，不会先回 204。
+
+13. **端口漂移没有回写启动清单**
+    复核：CLI、app 都是先 `listenStandaloneServer` 拿到真实 `server.port`，再拼 `authenticatedUrl`/设置页地址；未发现先算 URL 再 listen 的路径。
+
+14. **`scryptSync` 阻塞事件循环、无失败退避**
+    改为 `promisify(scrypt)` 异步计算；设置页连续失败 5 次暂停 30 秒。
+
+15. **密码策略只有 6 位**
+    服务端与前端都改为至少 8 位。
+
+16. **切换 `identityMode` 会清空 `username`**
+    去掉 `syncIdentity()` 里的清空；只在加载配置时清空一次，切换模式保留已输入内容。
+
+17. **默认值不一致**
+    客户端 `identityMode` 默认统一为 `token`，与插件 `identity_mode=token` 对齐；`textLimit=20`、`timeoutMs=120000` 保留并在页面提示。
+
+18. **没有版本号暴露**
+    详细 `/health`（带令牌）已包含版本；公开 `/health` 仍只回 `{ ok: true }`，避免无鉴权指纹。
+
+19. **`secureResponse` 的 `writeHead` monkey patch**
+    保持只包装当前响应对象、不改原型；补充注释，明确 handler 不得缓存 `writeHead.bind`。
+
+### 说明
+
+- 公开路径仍只有 `{ ok: true }`，详细状态需要 `X-DSH-Pet-Token`；
+- 设置页首次密码仍需启动器带 `#token=`；
+- 旧版设置页若缓存了不含令牌的地址，需要从桌宠菜单重新打开。

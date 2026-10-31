@@ -14,8 +14,8 @@ export const bridgeSettingsPage = `<!doctype html>
 <section id="setup" hidden><h2>首次使用：设置登录密码</h2>
 <p class="hint">密码只保存在本机，用于保护这个设置页。忘记后删除 <code>client-auth.json</code> 重新设置。</p>
 <form id="setup-form"><label for="su-user">用户名</label><input id="su-user" autocomplete="username" required maxlength="64">
-<label for="su-pass">密码（至少 6 位）</label><div class="token-field"><input id="su-pass" type="password" autocomplete="new-password" required minlength="6" maxlength="128"><button type="button" class="token-eye pass-eye" data-target="su-pass" aria-label="显示或隐藏密码"></button></div>
-<label for="su-pass2">再输一次</label><div class="token-field"><input id="su-pass2" type="password" autocomplete="new-password" required minlength="6" maxlength="128"><button type="button" class="token-eye pass-eye" data-target="su-pass2" aria-label="显示或隐藏密码"></button></div>
+<label for="su-pass">密码（至少 8 位）</label><div class="token-field"><input id="su-pass" type="password" autocomplete="new-password" required minlength="8" maxlength="128"><button type="button" class="token-eye pass-eye" data-target="su-pass" aria-label="显示或隐藏密码"></button></div>
+<label for="su-pass2">再输一次</label><div class="token-field"><input id="su-pass2" type="password" autocomplete="new-password" required minlength="8" maxlength="128"><button type="button" class="token-eye pass-eye" data-target="su-pass2" aria-label="显示或隐藏密码"></button></div>
 <button type="submit">设置并进入</button></form></section>
 <section id="login" hidden><h2>登录</h2><form id="login-form"><label for="li-user">用户名</label><input id="li-user" autocomplete="username" required>
 <label for="li-pass">密码</label><div class="token-field"><input id="li-pass" type="password" autocomplete="current-password" required><button type="button" class="token-eye pass-eye" data-target="li-pass" aria-label="显示或隐藏密码"></button></div>
@@ -23,7 +23,7 @@ export const bridgeSettingsPage = `<!doctype html>
 <section id="panel" hidden><h2>连接插件</h2>
 <form id="cfg-form"><label for="baseUrl">插件地址（relay）</label><input id="baseUrl" type="url" placeholder="http://127.0.0.1:18787" maxlength="2048" spellcheck="false" required>
 <p class="hint">AstrBot 插件监听的本机/隧道地址；换端口映射后只改这里。</p>
-<label for="identityMode">身份模式</label><select id="identityMode"><option value="owner">QQ号模式</option><option value="custom">自定义模式</option></select>
+<label for="identityMode">身份模式</label><select id="identityMode"><option value="owner">QQ号模式</option><option value="token">自定义模式</option></select>
 <p class="hint" id="identity-hint">参数一复用你现有的身份与上下文；参数二把桌宠当成一个新用户。</p>
 <label for="username" id="username-label">QQ 号</label><input id="username" maxlength="128" placeholder="请输入QQ号">
 <p class="hint" id="username-hint">填你的 QQ 号；插件会以这个身份进入 AstrBot。</p>
@@ -32,7 +32,7 @@ export const bridgeSettingsPage = `<!doctype html>
 <div class="pair"><div><label for="textLimit">单条字数上限</label><input id="textLimit" type="number" min="1" max="200" required><p class="hint">输入与回复都按这个上限截断。</p></div>
 <div><label for="timeoutMs">超时（毫秒）</label><input id="timeoutMs" type="number" min="5000" max="600000" step="1000" required><p class="hint">单次请求最多等多久。</p></div></div>
 <label for="token">配对令牌</label>
-<div class="token-line"><div class="token-field"><input id="token" type="text" maxlength="256" autocomplete="off" placeholder="必须与插件 tokens 那一行等号左边一致" disabled><button type="button" id="token-eye" class="token-eye" aria-label="显示或隐藏令牌"></button></div><button type="button" id="token-generate" disabled>生成</button><button type="button" id="token-edit">修改</button><button type="button" id="token-save" hidden>保存</button></div>
+<div class="token-line"><div class="token-field"><input id="token" type="text" maxlength="256" autocomplete="off" placeholder="必须与插件 tokens 那一行等号左边一致" disabled><button type="button" id="token-eye" class="token-eye" aria-label="显示或隐藏令牌"></button></div><button type="button" id="token-generate" disabled>生成</button><button type="button" id="token-copy" hidden>复制</button><button type="button" id="token-edit">修改</button><button type="button" id="token-save" hidden>保存</button></div>
 <p class="hint">这里填插件配置里 <code>tokens</code> 那一行等号左边的值，用于让桌宠通过插件进入 AstrBot；与插件端必须完全一致。</p>
 <footer><button type="submit" id="save">保存并立即生效</button><button type="button" id="test">测试连接</button><span id="test-result" class="test-result" role="status" aria-live="polite"></span></footer>
 </form>
@@ -90,7 +90,6 @@ export const bridgeSettingsScript = `
   function syncIdentity() {
     const owner = get('identityMode').value === 'owner';
     get('username-label').textContent = owner ? 'QQ 号' : '身份名称';
-    get('username').value = '';
     get('username').placeholder = owner ? '请输入QQ号' : '输入用户昵称';
     get('username-hint').textContent = owner
       ? '填你的 QQ 号；插件会以这个身份进入 AstrBot，复用同一段上下文。'
@@ -132,12 +131,13 @@ export const bridgeSettingsScript = `
     setEye(false);
     get('token-generate').disabled = config.hasToken;
     get('token-edit').hidden = !config.hasToken;
+    get('token-copy').hidden = true;
     get('token-save').hidden = true;
   }
 
   function applyConfig(config) {
     get('baseUrl').value = config.baseUrl || '';
-    get('identityMode').value = config.identityMode || 'custom';
+    get('identityMode').value = config.identityMode || 'token';
     get('username').value = '';
     get('session').value = config.session || 'main';
     get('textLimit').value = String(config.textLimit || 20);
@@ -178,7 +178,8 @@ export const bridgeSettingsScript = `
     setEye(true);
     get('token-save').hidden = false;
     get('token-generate').disabled = true;
-    void copyToken(token);
+    get('token-copy').hidden = false;
+    ok('已生成新令牌，点击「复制」带走');
   });
 
   async function copyToken(token) {
@@ -188,11 +189,16 @@ export const bridgeSettingsScript = `
         get('token').select();
         document.execCommand('copy');
       }
-      ok('已生成新令牌并复制到剪贴板');
+      ok('已复制到剪贴板');
     } catch {
-      ok('已生成新令牌，请手动复制');
+      ok('复制失败，请手动选中复制');
     }
   }
+
+  get('token-copy').addEventListener('click', () => {
+    const token = get('token').value.trim();
+    if (token) void copyToken(token);
+  });
 
   get('token-edit').addEventListener('click', () => {
     tokenEditing = true;
@@ -204,6 +210,7 @@ export const bridgeSettingsScript = `
     setEye(false);
     get('token-edit').hidden = true;
     get('token-save').hidden = false;
+    get('token-copy').hidden = true;
     get('token-generate').disabled = false;
     input.focus();
   });
@@ -225,7 +232,8 @@ export const bridgeSettingsScript = `
     try {
       const status = await readStatus();
       if (!status.hasPassword) { show('setup'); return; }
-      if (!auth) { show('login'); return; }
+      // 进程令牌也能读配置；只有既没登录、也没令牌时才要求登录。
+      if (!auth && !pageToken) { show('login'); return; }
       try {
         await loadConfig();
       } catch (error) {
@@ -289,7 +297,9 @@ export const bridgeSettingsScript = `
     resultLine.className = 'test-result';
     try {
       const result = await request('/standalone-settings/test', { method: 'POST' });
-      resultLine.textContent = result.ok ? '连接正常' : (result.configured ? '插件可达但未就绪' : '尚未配置或连不上');
+      resultLine.textContent = result.ok
+        ? '连接正常'
+        : (result.hint || (result.configured ? '插件可达但未就绪' : '尚未配置或连不上'));
       resultLine.className = 'test-result ' + (result.ok ? 'ok' : 'err');
     } catch (error) {
       resultLine.textContent = error.message;

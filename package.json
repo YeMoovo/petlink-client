@@ -1,6 +1,6 @@
 {
   "name": "petlink-client",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "PetLink 桌宠客户端：Electron 桌面宠物 + 本机设置页，通过 AstrBot 插件连接大模型。",
   "icon": "assets/logo.png",
   "keywords": [
@@ -148,13 +148,5 @@
     "tsdown": "^0.8.0",
     "typescript": "^5.5.0",
     "typescript-eslint": "^8.67.0"
-  },
-  "homepage": "https://github.com/YeMoovo/petlink-client#readme",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/YeMoovo/petlink-client.git"
-  },
-  "bugs": {
-    "url": "https://github.com/YeMoovo/petlink-client/issues"
   }
 }

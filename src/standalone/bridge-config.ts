@@ -20,7 +20,7 @@ export interface BridgeAgentConfig {
   /** 在远端 AstrBot 里的身份。 */
   username: string;
   /** 身份模式：owner = 与 AstrBot 既有身份同一人；custom = 自定义新身份。 */
-  identityMode: 'owner' | 'custom';
+  identityMode: 'owner' | 'token';
   /** 远端会话 id（relay 会加 pet: 前缀）。 */
   session: string;
   /** 单次请求超时。 */
@@ -89,7 +89,7 @@ export function loadBridgeConfig(home: string, env: NodeJS.ProcessEnv = process.
       baseUrl,
       token,
       username: text(env.DSH_PET_BRIDGE_USERNAME ?? raw.username) || 'dsh_pet',
-      identityMode: raw.identityMode === 'owner' ? 'owner' : 'custom',
+      identityMode: raw.identityMode === 'owner' ? 'owner' : 'token',
       session: text(env.DSH_PET_BRIDGE_SESSION ?? raw.session) || 'main',
       timeoutMs: Number.isFinite(timeout)
         ? Math.min(MAX_TIMEOUT_MS, Math.max(MIN_TIMEOUT_MS, Math.trunc(timeout)))
