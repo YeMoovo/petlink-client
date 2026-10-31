@@ -25,6 +25,7 @@ import { packageVersion } from '../standalone/check.ts';
 import { createStandaloneContext, STANDALONE_PROVIDER, type RegisteredRoute } from '../standalone/context.ts';
 import { registerBalanceProvider } from '../host/balance/index.ts';
 import { acquireInstanceLock } from '../standalone/instance-guard.ts';
+import { resolveRuntimeHome } from '../standalone/portable-home.ts';
 import { configPathsFor } from '../standalone/options.ts';
 import { createRequestSecurity } from '../standalone/request-security.ts';
 
@@ -45,6 +46,7 @@ interface WebContentsLike {
 interface ElectronApp {
   whenReady(): Promise<void>;
   requestSingleInstanceLock(): boolean;
+  isPackaged: boolean;
   exit(code?: number): void;
   on(event: 'web-contents-created', listener: (event: unknown, contents: WebContentsLike) => void): void;
   on(event: 'second-instance', listener: () => void): void;
@@ -79,6 +81,13 @@ if (!locked) {
  * 而 Helper 又必须在 ready 之前被 require（内部有 `app.commandLine.appendSwitch`，ready 后再加不生效）。
  */
 async function boot(): Promise<void> {
+  // 数据目录优先落在 exe 同盘的 PetLinkData，避免 portable 版写 C 盘；
+  // 显式 DSH_HOME / PETLINK_DATA_DIR 仍然优先。
+  const runtimeHome = resolveRuntimeHome({
+    packagedDir: app.isPackaged ? dirname(process.execPath) : undefined,
+  });
+  if (runtimeHome.warning) console.warn(`[petlink] ${runtimeHome.warning}`);
+  process.env.DSH_HOME = runtimeHome.home;
   // 独立应用没有控制台：插件日志、standalone 日志与同进程 Helper/渲染端的 console 全部落盘。
   // 原始 console 方法要先快照——包装后的 console 会转给文件 logger，logger 的 base 必须指向原始方法，
   // 否则 logger → console → logger 无限递归。

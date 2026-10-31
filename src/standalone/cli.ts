@@ -22,6 +22,7 @@ import { hasClientPassword } from './client-auth.ts';
 import { loadBridgeConfig } from './bridge-config.ts';
 import { openBrowser } from './open-browser.ts';
 import { acquireInstanceLock } from './instance-guard.ts';
+import { resolveRuntimeHome } from './portable-home.ts';
 import { setTextLimit } from '../shared/text-clip.ts';
 import { createRequestSecurity } from './request-security.ts';
 import { writeStandaloneRuntime } from './runtime-state.ts';
@@ -211,6 +212,11 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return 0;
   }
+  // 数据目录优先落在 exe 同盘的 PetLinkData，避免 portable 版写 C 盘；
+  // 显式 DSH_HOME / PETLINK_DATA_DIR 仍然优先。
+  const runtimeHome = resolveRuntimeHome();
+  if (runtimeHome.warning) console.warn(`[petlink] ${runtimeHome.warning}`);
+  process.env.DSH_HOME = runtimeHome.home;
   // 独立模式常常没有终端，日志必须同时落盘；插件会复用同一个 logger。
   const logger = createStandaloneLogger({ file: join(dshHomeDir(), 'dsh-pet', 'logs.txt') });
   // 纯模块没有 ctx.logger，靠默认出口落盘。

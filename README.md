@@ -57,6 +57,17 @@ npm run dist          # 打 Windows 解包目录（dist-app/）
 
 要求 Node.js 24+、pnpm 11（仓库使用 `nodeLinker: hoisted`）。
 
+## 数据目录
+
+默认**不写 C 盘用户目录**，而是放在程序同盘：
+
+- 便携 exe：`<PetLink.exe 所在目录>/PetLinkData/dsh-pet/`
+- 解包目录：`<解压目录>/PetLinkData/dsh-pet/`
+- 想换盘或换目录：设置 `PETLINK_DATA_DIR`，或显式设置 `DSH_HOME`
+- 只有 `PetLinkData` 不可写时，才回退到 `~/.dsh` 并打 warning
+
+`remote.json`、`client-auth.json`、`memory.json`、`logs.txt` 都在这个目录里。
+
 ## 安全
 
 - 本机服务只监听 `127.0.0.1`；
