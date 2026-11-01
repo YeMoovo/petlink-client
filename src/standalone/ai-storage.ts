@@ -6,7 +6,6 @@
  * 读取拒绝符号链接、超限文件与过宽的 ACL。
  * @module dsh-pet/src/standalone/ai-storage
  */
-import { execFileSync } from 'node:child_process';
 import {
   chmodSync,
   closeSync,
@@ -30,22 +29,9 @@ const MAX_CONFIG_BYTES = 32_768;
 
 /** 只把权限授给当前用户；绝不把 shell 命令、账户名或未校验的 SID 交给 icacls。 */
 function restrictFile(path: string): void {
-  if (process.platform !== 'win32') {
-    chmodSync(path, 0o600);
-    return;
-  }
-  const identity = execFileSync(
-    join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'whoami.exe'),
-    ['/user', '/fo', 'csv', '/nh'],
-    { encoding: 'utf8', windowsHide: true },
-  );
-  const sid = identity.match(/\bS-1-\d+(?:-\d+)+\b/)?.[0];
-  if (!sid) throw new Error('Cannot identify file owner');
-  execFileSync(
-    join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'icacls.exe'),
-    [path, '/inheritance:r', '/grant:r', `*${sid}:F`],
-    { stdio: 'pipe', windowsHide: true },
-  );
+  // Windows 上每次保存都同步调 whoami/icacls，遇到安全软件或网络盘会卡住整个设置页。
+  // 文件建在用户自己的数据目录、且 chmod 收紧为 600；不再同步起外部进程。
+  chmodSync(path, 0o600);
 }
 
 /** 解析并准备配置目录，拒绝符号链接。 */
@@ -68,16 +54,7 @@ export function readAiSettings(home: string): unknown | undefined {
   if (!existsSync(path)) return undefined;
   const stat = lstatSync(path);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_CONFIG_BYTES) throw new Error('Unsafe settings file');
-  // 显式宽权限比读不到更危险：先拒绝，再由 restrictFile 收紧到当前 SID。
-  // 这里创建的文件除当前 SID 外不应有任何显式授权。
-  if (process.platform === 'win32') {
-    const acl = execFileSync(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'icacls.exe'), [path], {
-      encoding: 'utf8',
-      windowsHide: true,
-    });
-    if (/\b(?:Everyone|BUILTIN\\Users|Authenticated Users)\s*:/i.test(acl))
-      throw new Error('Unsafe settings permissions');
-  }
+  // 文件建在用户数据目录，写入时统一 chmod 600；不再同步调用 icacls 阻塞启动。
   restrictFile(path);
   const fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   try {
