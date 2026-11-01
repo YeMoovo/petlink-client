@@ -141,7 +141,17 @@ export function createBridgeChat(config: BridgeAgentConfig, deps: BridgeChatDeps
           redirect: 'error',
         });
         if (!response.ok) {
-          const detail = (await response.text()).slice(0, 300);
+          const raw = (await response.text()).slice(0, 300);
+          let detail = raw;
+          try {
+            const parsed = JSON.parse(raw) as { message?: unknown; error?: unknown };
+            detail = String(parsed.message ?? parsed.error ?? raw);
+          } catch {
+            /* 非 JSON 就回原文 */
+          }
+          if (/reserved for an AstrBot administrator/i.test(detail)) {
+            detail = 'AstrBot 拒绝管理员身份。QQ号模式需要给 API Key 勾选 admin 权限，或改用自定义模式。';
+          }
           throw new Error(`桥返回 HTTP ${response.status}${detail ? `：${detail}` : ''}`);
         }
         if (!response.body) throw new Error('桥返回空响应体');

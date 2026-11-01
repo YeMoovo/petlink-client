@@ -1,5 +1,40 @@
 # 变更记录
 
+## 0.5.0 — 2026-11-01
+
+本版汇总 0.4.9 之后的所有修复，并处理 AstrBot 管理员身份导致的对话错误。
+
+### 设置与安装
+
+- zip 完整目录分发，内含 Electron 运行时和全部依赖；
+- 数据固定写入 exe 同级 `PetLinkData\dsh-pet`；
+- 插件地址默认 `http://127.0.0.1:18787`；
+- 「测试连接」先保存当前桥接表单，未点「全局保存」也能测试；
+- 全局保存增加超时，移除 Windows 下同步 `icacls`/`whoami`，修复保存卡在“正在保存到本机”；
+- 设置页回填 QQ 号/自定义身份，两种模式分别保存、切换时恢复；
+- 身份模式由客户端决定，插件移除 `identity_mode` / `owner_id` / `allow_client_identity`；
+- 测试连接校验设备令牌，令牌不一致时提示重新复制保存。
+
+### 桌宠动作与对话
+
+- 修复 `S.markVoicePending is not a function`，重新生成 shared-core；
+- 渲染端 fetch 自动补 `X-DSH-Pet-Token`，主进程保留运行令牌并通过 preload/页面参数注入；
+- 修复 `boundedRequest` 包装流二次消费导致带正文 POST 挂起：`/chat`、`/sleep`、`/menu/click`、`/playback/report` 现在直接读取缓存 `bodyBuffer`；
+- 文件页媒体/图标 GET 允许免令牌读取，修复动画素材 403/10 秒超时；
+- 对话等待时间由 60 秒提高到 180 秒。
+
+### AstrBot 错误处理
+
+- 插件 0.2.7 识别 AstrBot 返回的 HTTP 200 JSON 错误体，不再把它当 SSE 透传；
+- QQ号模式使用管理员身份、但 API Key 没有 `admin` scope 时，客户端显示明确原因；
+- 该场景可改用自定义模式，或给 API Key 勾选 `admin`。
+
+### 配套
+
+- AstrBot 插件：`astrbot_plugin_petlink 0.2.7`
+- 插件默认端口：`18787`
+- 设备令牌填 `pet-...`，不是 `abk_` API Key
+
 ## 0.4.9 — 2026-11-01
 
 ### 设置页体验
