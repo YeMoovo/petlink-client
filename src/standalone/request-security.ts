@@ -75,15 +75,17 @@ export function createRequestSecurity(): RequestSecurity {
       // 文件页渲染器也要带令牌：沙箱网页同样会发来 null 来源。
       // 同一渲染器加载媒体时可能完全不带 Origin，只有这种情况才放行。
       const fileOrigin = allowFileOrigin && (req.headers.origin === 'null' || req.headers.origin === undefined);
+      const mediaRead = publicMedia(req);
       if (
         !fileOrigin &&
+        !mediaRead &&
         ((req.headers.origin !== undefined && req.headers.origin !== `http://${host}`) ||
           req.headers['sec-fetch-site'] === 'cross-site')
       ) {
         return rejectRequest(res, 403, '不允许跨站请求');
       }
       try {
-        if (publicRead(req) && (!fileOrigin || publicMedia(req))) return true;
+        if (publicRead(req) && (!fileOrigin || mediaRead)) return true;
       } catch {
         return rejectRequest(res, 400, '请求地址无效');
       }

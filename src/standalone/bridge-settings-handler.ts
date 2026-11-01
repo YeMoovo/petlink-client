@@ -119,11 +119,12 @@ export function createBridgeSettingsHandler(options: BridgeSettingsOptions): Bri
         return unauthorized(res);
       }
       const detail = await controller.healthDetail();
+      const tokenOk = detail.tokenOk !== false;
       return sendJson(res, 200, {
-        ok: detail.ready,
+        ok: detail.ready && tokenOk,
         configured: controller.configured,
         authState: detail.authState,
-        hint: detail.hint,
+        hint: tokenOk ? detail.hint : '设备令牌与插件不一致，请重新复制并保存',
       });
     }
 

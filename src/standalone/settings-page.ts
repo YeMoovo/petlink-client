@@ -231,8 +231,19 @@ export const settingsScript = `
     input.type = show ? 'text' : 'password';
     get('apiKeyEye').innerHTML = show ? EYE_OPEN : EYE_CLOSED;
   });
+  let bridgeOwnerName = '';
+  let bridgeCustomName = '';
+  let bridgeLastMode = '';
   function syncBridgeIdentity() {
-    const owner = get('bridgeIdentityMode').value === 'owner';
+    const mode = get('bridgeIdentityMode').value === 'owner' ? 'owner' : 'token';
+    const input = get('bridgeUsername');
+    if (bridgeLastMode && bridgeLastMode !== mode) {
+      if (bridgeLastMode === 'owner') bridgeOwnerName = input.value.trim();
+      else bridgeCustomName = input.value.trim();
+      input.value = mode === 'owner' ? bridgeOwnerName : bridgeCustomName;
+    }
+    bridgeLastMode = mode;
+    const owner = mode === 'owner';
     get('bridgeUsernameLabel').textContent = owner ? 'QQ 号' : '身份名称';
     get('bridgeUsername').placeholder = owner ? '请输入QQ号' : '输入用户昵称';
     get('bridgeIdentityHint').textContent = owner
@@ -277,9 +288,14 @@ export const settingsScript = `
     get('bridgeTokenEdit').hidden = false;
   }
   function applyBridge(config) {
+    const mode = config.identityMode === 'owner' ? 'owner' : 'token';
+    const savedName = config.username || '';
+    bridgeOwnerName = mode === 'owner' ? savedName : '';
+    bridgeCustomName = mode === 'token' ? savedName : '';
+    bridgeLastMode = mode;
     get('bridgeBaseUrl').value = config.baseUrl || 'http://127.0.0.1:18787';
-    get('bridgeIdentityMode').value = config.identityMode || 'token';
-    get('bridgeUsername').value = config.username || '';
+    get('bridgeIdentityMode').value = mode;
+    get('bridgeUsername').value = savedName;
     get('bridgeSession').value = config.session || 'main';
     get('bridgeTextLimit').value = String(config.textLimit || 20);
     get('bridgeTimeout').value = String(config.timeoutMs || 120000);

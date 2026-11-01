@@ -10,6 +10,19 @@ import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { rejectRequest } from '../request-security.ts';
 import { sendJson } from './respond.ts';
 
+/** 读取请求文本；boundedRequest 包装流优先取已缓存的 Buffer，避免再次消费流。 */
+async function readText(req: IncomingMessage): Promise<string> {
+  const preset = (req as IncomingMessage & { bodyBuffer?: Buffer }).bodyBuffer;
+  if (preset) return preset.toString('utf8');
+  const chunks: Buffer[] = [];
+  await new Promise<void>((resolve, reject) => {
+    req.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+    req.once('end', resolve);
+    req.once('error', reject);
+  });
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 /**
  * 创建设置读写处理器（GET 读，POST 存）。
  * @param ai - 设置服务。
@@ -48,13 +61,8 @@ export function settingsHandler(
       return;
     }
     try {
-      const chunks: Buffer[] = [];
-      await new Promise<void>((resolve, reject) => {
-        req.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
-        req.once('end', resolve);
-        req.once('error', reject);
-      });
-      const input = validateSettings(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+      const text = await readText(req);
+      const input = validateSettings(JSON.parse(text));
       sendJson(res, 200, publicSettings(await ai.saveSettings(input)));
     } catch {
       rejectRequest(res, 400, '设置未保存：请检查接口地址、模型名称、密钥和数值范围');
@@ -76,13 +84,7 @@ export function testHandler(
       return;
     }
     try {
-      const chunks: Buffer[] = [];
-      await new Promise<void>((resolve, reject) => {
-        req.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
-        req.once('end', resolve);
-        req.once('error', reject);
-      });
-      const bodyStr = Buffer.concat(chunks).toString('utf8');
+      const bodyStr = await readText(req);
       const input = bodyStr ? JSON.parse(bodyStr) : {};
       if (ai?.testConnection) {
         const result = await ai.testConnection(input);

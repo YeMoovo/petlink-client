@@ -61,6 +61,7 @@ export async function boundedRequest(
   });
   if (body === undefined) return undefined;
   return Object.assign(Readable.from([body]), {
+    bodyBuffer: body,
     method: req.method,
     url: req.url,
     headers: req.headers,
@@ -73,5 +74,5 @@ export async function boundedRequest(
     pause: () => {},
     resume: () => {},
     isPaused: () => false,
-  }) as IncomingMessage;
+  }) as unknown as IncomingMessage;
 }

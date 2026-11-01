@@ -29,6 +29,7 @@ export interface BridgeHealthDetail {
   ok: boolean;
   ready: boolean;
   authState?: string;
+  tokenOk?: boolean;
   hint?: string;
 }
 
@@ -199,6 +200,7 @@ export function createBridgeChat(config: BridgeAgentConfig, deps: BridgeChatDeps
         return {
           ok: true,
           ready: record.ready === true,
+          ...(typeof record.token_ok === 'boolean' ? { tokenOk: record.token_ok } : {}),
           ...(typeof record.auth_state === 'string' ? { authState: record.auth_state } : {}),
           ...(typeof record.auth_hint === 'string' ? { hint: record.auth_hint } : {}),
         };

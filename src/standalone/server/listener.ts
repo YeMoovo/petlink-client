@@ -133,7 +133,8 @@ export function createRequestListener(
       void options.bridgeSettings(req, res, parsedUrl).catch((error: unknown) => fail(res, error, options.logger));
       return;
     }
-    if (security && !security.authorize(req, res)) return;
+    // 桌面端渲染页是 file://：允许它携带 token 访问 API，媒体 GET 另由 request-security 放行。
+    if (security && !security.authorize(req, res, true)) return;
     // 不记录路径、片段、查询、正文与鉴权头，避免把令牌写进日志。
     options.logger.debug('收到本机 HTTP 请求');
     const hasBody = req.headers['transfer-encoding'] !== undefined || Number(req.headers['content-length'] ?? 0) > 0;
