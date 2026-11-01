@@ -38,6 +38,17 @@ function publicRead(req: IncomingMessage): boolean {
   );
 }
 
+/** 文件页渲染器的媒体/图标 GET：video/img 不会带自定义请求头，必须允许无令牌读取。 */
+function publicMedia(req: IncomingMessage): boolean {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+  try {
+    const path = decodeURIComponent(new URL(req.url ?? '/', 'http://127.0.0.1').pathname);
+    return /^\/dsh-pet-\d+\/(?:thumb|sound|pic|font|logo)(?:\/|$)/.test(path);
+  } catch {
+    return false;
+  }
+}
+
 /** 创建请求安全门面。 */
 export function createRequestSecurity(): RequestSecurity {
   const token = randomBytes(32).toString('base64url');
@@ -72,7 +83,7 @@ export function createRequestSecurity(): RequestSecurity {
         return rejectRequest(res, 403, '不允许跨站请求');
       }
       try {
-        if (publicRead(req) && !fileOrigin) return true;
+        if (publicRead(req) && (!fileOrigin || publicMedia(req))) return true;
       } catch {
         return rejectRequest(res, 400, '请求地址无效');
       }
