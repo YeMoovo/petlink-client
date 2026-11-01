@@ -20,6 +20,7 @@ export function sendJson(res: ServerResponse, status: number, body: unknown, cor
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'content-length': Buffer.byteLength(payload),
+    connection: 'close',
     ...(cors ? { 'access-control-allow-origin': '*' } : {}),
   });
   res.end(payload);

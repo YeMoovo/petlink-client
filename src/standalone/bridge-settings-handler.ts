@@ -174,8 +174,14 @@ function unauthorized(res: ServerResponse): true {
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): true {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-  res.end(JSON.stringify(body));
+  const payload = JSON.stringify(body);
+  res.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': Buffer.byteLength(payload),
+    connection: 'close',
+    'cache-control': 'no-store',
+  });
+  res.end(payload);
   return true;
 }
 

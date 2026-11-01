@@ -2002,7 +2002,7 @@ function createChatDom(opts = {}) {
 //#endregion
 //#region src/shared/chat/send.ts
 /** 对话要等 LLM 生成回复，比碎碎念（30s）放宽一倍 */
-const SEND_TIMEOUT_MS = 6e4;
+const SEND_TIMEOUT_MS = 18e4;
 async function sendChat(baseUrl, text, attachment) {
 	const res = await fetch(baseUrl, {
 		method: "POST",

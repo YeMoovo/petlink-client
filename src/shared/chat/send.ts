@@ -20,7 +20,7 @@ export type ChatSendState =
     };
 
 /** 对话要等 LLM 生成回复，比碎碎念（30s）放宽一倍 */
-const SEND_TIMEOUT_MS = 60_000;
+const SEND_TIMEOUT_MS = 180_000;
 
 /**
  * 发送一句对话（携带记忆去宿主生成回复并写入记忆）。

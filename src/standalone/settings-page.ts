@@ -15,7 +15,7 @@ export const settingsPage = `<!doctype html>
 <h1>PetLink AI 设置</h1><p class="intro">配置你的大模型 API 接口，开启桌面聊天与碎碎念。<br>所有设置仅保存在本机，支持即时测试连接。</p></header>
 <form id="settings" aria-describedby="privacy">
 <fieldset><legend>连接插件（AstrBot）</legend>
-<label for="bridgeBaseUrl">插件地址（relay）</label><input id="bridgeBaseUrl" type="url" placeholder="http://127.0.0.1:18787" maxlength="2048" spellcheck="false"><p class="hint">AstrBot 插件监听的本机/隧道地址；换端口映射后只改这里。</p>
+<label for="bridgeBaseUrl">插件地址（relay）</label><input id="bridgeBaseUrl" type="url" placeholder="http://127.0.0.1:18787" value="http://127.0.0.1:18787" maxlength="2048" spellcheck="false"><p class="hint">AstrBot 插件监听的本机/隧道地址；换端口映射后只改这里。</p>
 <label for="bridgeIdentityMode">身份模式</label><select id="bridgeIdentityMode"><option value="owner">QQ号模式</option><option value="token">自定义模式</option></select><p class="hint" id="bridgeIdentityHint"></p>
 <label for="bridgeUsername" id="bridgeUsernameLabel">QQ 号</label><input id="bridgeUsername" maxlength="128" placeholder="请输入QQ号"><p class="hint" id="bridgeUsernameHint"></p>
 <label for="bridgeSession">会话</label><input id="bridgeSession" maxlength="128" placeholder="main" value="main"><p class="hint">同一会话保持连续上下文；换一个会话等于开一段新对话。</p>
@@ -72,17 +72,26 @@ export const settingsScript = `
   const testResult = get('test-result');
   function message(text, error = false) { status.textContent = text; status.dataset.error = String(error); }
   async function request(method, body) {
-    const response = await fetch('/standalone-ai/settings', {
-      method, credentials: 'omit', cache: 'no-store', redirect: 'error',
-      headers: { 'X-DSH-Pet-Token': token, ...(body ? {'Content-Type': 'application/json'} : {}) },
-      ...(body ? {body: JSON.stringify(body)} : {})
-    });
-    if (!response.ok) {
-      if (response.status === 403) throw new Error('打开凭据已失效。请从桌宠菜单重新打开设置。');
-      if (response.status === 429) throw new Error('保存过于频繁，请稍等一分钟再试。');
-      throw new Error('设置未保存。请检查接口地址、模型名称与密钥，再重试。');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch('/standalone-ai/settings', {
+        method, credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal,
+        headers: { 'X-DSH-Pet-Token': token, ...(body ? {'Content-Type': 'application/json'} : {}) },
+        ...(body ? {body: JSON.stringify(body)} : {})
+      });
+      if (!response.ok) {
+        if (response.status === 403) throw new Error('打开凭据已失效。请从桌宠菜单重新打开设置。');
+        if (response.status === 429) throw new Error('保存过于频繁，请稍等一分钟再试。');
+        throw new Error('设置未保存。请检查接口地址、模型名称与密钥，再重试。');
+      }
+      return response.json();
+    } catch (error) {
+      if (error && error.name === 'AbortError') throw new Error('保存超时，请重试');
+      throw error;
+    } finally {
+      clearTimeout(timer);
     }
-    return response.json();
   }
   function applyModelEnabled(on) {
     get('model-section').classList.toggle('model-off', !on);
@@ -165,15 +174,7 @@ export const settingsScript = `
     get('apiKey').value = '';
     try {
       // 全局保存：先热更新桥接配置，再保存 AI 设置。
-      applyBridge(await bridgeRequest('/config', 'POST', {
-        baseUrl: get('bridgeBaseUrl').value.trim(),
-        identityMode: get('bridgeIdentityMode').value,
-        username: get('bridgeUsername').value.trim(),
-        session: get('bridgeSession').value.trim(),
-        textLimit: Number(get('bridgeTextLimit').value),
-        timeoutMs: Number(get('bridgeTimeout').value),
-        ...(bridgeTokenEditing && bridgeFullToken ? { token: bridgeFullToken } : {}),
-      }));
+      applyBridge(await bridgeRequest('/config', 'POST', bridgePatch()));
       populate(await request('POST', input));
       get('apiKey').disabled = false;
       message('已全局保存，桥接配置已热更新。');
@@ -186,18 +187,38 @@ export const settingsScript = `
     bridgeResult.textContent = text;
   }
   async function bridgeRequest(path, method = 'GET', body) {
-    const response = await fetch('/standalone-settings' + path, {
-      method, credentials: 'omit', cache: 'no-store', redirect: 'error',
-      headers: { 'X-DSH-Pet-Token': token, ...(body ? {'Content-Type': 'application/json'} : {}) },
-      ...(body ? {body: JSON.stringify(body)} : {})
-    });
-    if (!response.ok) throw new Error(response.status === 401 ? '没有访问凭据' : 'HTTP ' + response.status);
-    return response.json();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch('/standalone-settings' + path, {
+        method, credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal,
+        headers: { 'X-DSH-Pet-Token': token, ...(body ? {'Content-Type': 'application/json'} : {}) },
+        ...(body ? {body: JSON.stringify(body)} : {})
+      });
+      if (!response.ok) throw new Error(response.status === 401 ? '没有访问凭据' : 'HTTP ' + response.status);
+      return response.json();
+    } catch (error) {
+      if (error && error.name === 'AbortError') throw new Error('请求超时，请重试');
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   }
   let bridgeFullToken = '';
   let bridgeMaskedToken = '';
   let bridgeTokenEditing = false;
   let bridgeTokenVisible = false;
+  function bridgePatch() {
+    return {
+      baseUrl: get('bridgeBaseUrl').value.trim() || 'http://127.0.0.1:18787',
+      identityMode: get('bridgeIdentityMode').value,
+      username: get('bridgeUsername').value.trim(),
+      session: get('bridgeSession').value.trim(),
+      textLimit: Number(get('bridgeTextLimit').value),
+      timeoutMs: Number(get('bridgeTimeout').value),
+      ...(bridgeTokenEditing && bridgeFullToken ? { token: bridgeFullToken } : {}),
+    };
+  }
   const EYE_OPEN = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
   const EYE_CLOSED = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="3" x2="21" y2="21"/></svg>';
   function setBridgeEye(open) {
@@ -256,9 +277,9 @@ export const settingsScript = `
     get('bridgeTokenEdit').hidden = false;
   }
   function applyBridge(config) {
-    get('bridgeBaseUrl').value = config.baseUrl || '';
+    get('bridgeBaseUrl').value = config.baseUrl || 'http://127.0.0.1:18787';
     get('bridgeIdentityMode').value = config.identityMode || 'token';
-    get('bridgeUsername').value = '';
+    get('bridgeUsername').value = config.username || '';
     get('bridgeSession').value = config.session || 'main';
     get('bridgeTextLimit').value = String(config.textLimit || 20);
     get('bridgeTimeout').value = String(config.timeoutMs || 120000);
@@ -297,10 +318,16 @@ export const settingsScript = `
     input.focus();
   });
   get('bridgeTest').addEventListener('click', async () => {
+    const button = get('bridgeTest');
+    button.disabled = true;
+    bridgeMessage('正在保存并测试连接，请稍候…');
     try {
+      // 测试前先把当前表单写入 remote.json，未点「全局保存」也能测试。
+      applyBridge(await bridgeRequest('/config', 'POST', bridgePatch()));
       const result = await bridgeRequest('/test', 'POST');
       bridgeMessage(result.ok ? '连接正常，插件在线' : (result.hint || '插件可达但未就绪（检查令牌/Key）'), !result.ok);
     } catch (error) { bridgeMessage(error.message, true); }
+    finally { button.disabled = false; }
   });
   if (!token) { message('请从桌宠菜单或本机启动器打开设置，以获得本次运行的访问凭据。', true); return; }
   request('GET').then(data => { populate(data); save.disabled = false; message('设置只在本机保存。'); })

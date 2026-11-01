@@ -46,10 +46,10 @@ export function readBridgeSettings(home: string, includeToken = false): BridgeSe
   if (!loaded.config) {
     return {
       id: 'astrbot-home',
-      baseUrl: '',
+      baseUrl: 'http://127.0.0.1:18787',
       hasToken: false,
       tokenMask: '',
-      username: '',
+      username: 'dsh_pet',
       identityMode: 'token',
       session: 'main',
       timeoutMs: 120000,

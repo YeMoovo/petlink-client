@@ -1,6 +1,6 @@
 {
   "name": "petlink-client",
-  "version": "0.4.7",
+  "version": "0.4.9",
   "description": "PetLink 桌宠客户端：Electron 桌面宠物 + 本机设置页，通过 AstrBot 插件连接大模型。",
   "icon": "assets/logo.png",
   "keywords": [
