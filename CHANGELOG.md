@@ -8,14 +8,17 @@
 - 「全局保存」请求增加 15/20 秒超时，设置接口响应统一 `Connection: close`，修复保存一直停在「正在保存到本机…」；
 - 插件地址默认填入 `http://127.0.0.1:18787`，直接可用；
 - 重新打开设置页时回填已保存的 QQ 号/自定义身份，不再清空；
-- 身份模式由客户端决定，插件端不再提供 `identity_mode` / `owner_id` / `allow_client_identity` 选项。
+- 身份模式由客户端决定，插件端不再提供 `identity_mode` / `owner_id` / `allow_client_identity` 选项；
+- QQ 号模式与自定义模式分别保存身份，切换时恢复对应值；
+- 测试连接会校验设备令牌；客户端令牌与插件不一致时提示重新复制保存（配套插件 0.2.6）。
 
 ### 桌宠动作与对话
 
 - 修复菜单 `S.markVoicePending is not a function`，重新生成 `shared-core`；
 - 桌面渲染端 fetch 自动补 `X-DSH-Pet-Token`，修复 `/chat`、`/sleep`、`/state`、播放回报 403 导致卡动作；
-- 文件页媒体/图标 GET 允许免令牌读取，修复动画素材 10 秒超时卡住；
-- 应用主进程保留本次运行令牌供 preload/页面注入。
+- 应用主进程保留本次运行令牌，并通过 preload/页面参数注入渲染端；
+- 修复 `boundedRequest` 包装流二次消费导致所有带正文 POST 挂起：`/chat`、`/sleep`、`/menu/click`、`/playback/report` 现在直接读取缓存 `bodyBuffer`；
+- 文件页媒体/图标 GET 允许免令牌读取，修复动画素材 10 秒超时卡住。
 
 ### 对话等待
 
