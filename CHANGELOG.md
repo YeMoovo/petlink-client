@@ -10,6 +10,13 @@
 - 重新打开设置页时回填已保存的 QQ 号/自定义身份，不再清空；
 - 身份模式由客户端决定，插件端不再提供 `identity_mode` / `owner_id` / `allow_client_identity` 选项。
 
+### 桌宠动作与对话
+
+- 修复菜单 `S.markVoicePending is not a function`，重新生成 `shared-core`；
+- 桌面渲染端 fetch 自动补 `X-DSH-Pet-Token`，修复 `/chat`、`/sleep`、`/state`、播放回报 403 导致卡动作；
+- 文件页媒体/图标 GET 允许免令牌读取，修复动画素材 10 秒超时卡住；
+- 应用主进程保留本次运行令牌供 preload/页面注入。
+
 ### 对话等待
 
 - 客户端发送对话的等待时间从 60 秒提高到 180 秒，避免桥接允许 120 秒、客户端先报 `signal timed out`。
