@@ -8,6 +8,22 @@
  */
 'use strict';
 
+// 桌面端 HTTP 直连时，渲染进程的 fetch 不会经过主进程的 header 注入；
+// 用 preload 暴露的本次运行令牌补上，避免 /chat、/state、/sleep 等 POST 全部 403。
+const __petAuthToken = window.dshPetAuthToken || new URLSearchParams(location.search).get('appToken') || '';
+if (__petAuthToken && typeof window.fetch === 'function') {
+  const __petFetch = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input && input.url ? input.url : '';
+    if (/^http:\/\/127\.0\.0\.1:\d+\/dsh-pet-\d+\//.test(url)) {
+      const headers = new Headers(init.headers || {});
+      headers.set('X-DSH-Pet-Token', __petAuthToken);
+      return __petFetch(input, { ...init, headers });
+    }
+    return __petFetch(input, init);
+  };
+}
+
 // 配置（大声报错；失败 5s 重试）
 function showError(message) {
   console.error('[petlink] ' + message);

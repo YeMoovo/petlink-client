@@ -226,12 +226,10 @@ async function boot(): Promise<void> {
       security.token,
     );
   });
+  // preload 需要读它给渲染端 fetch 补令牌；helper 的 whenReady 在 createRequire 返回后才建窗，
+  // 因此不能在 finally 里删掉，否则渲染端拿不到 token（POST /chat、/state 会 403）。
   process.env.DSH_PET_APP_TOKEN = security.token;
-  try {
-    createRequire(import.meta.url)(helperMain);
-  } finally {
-    delete process.env.DSH_PET_APP_TOKEN;
-  }
+  createRequire(import.meta.url)(helperMain);
 
   app.on('second-instance', () => log('已有一个实例在运行，忽略本次启动'));
   app.on('will-quit', () => {

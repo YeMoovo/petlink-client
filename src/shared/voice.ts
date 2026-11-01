@@ -77,6 +77,11 @@ export function setVoiceBase(base: unknown): void {
   if (typeof base === 'string' && base) voiceBase = base;
 }
 
+/** 手动点播/菜单碎碎念：先挂起，等 say 叶子真正播放时再进入 ready。 */
+export function markVoicePending(): void {
+  setVoiceState('loading');
+}
+
 /**
  * 声明本端是网页端还是桌面端；两端各自在启动时调一次。
  * 没声明时不按 `say` 叶子播放——宁可没声音，也不替另一端出声。

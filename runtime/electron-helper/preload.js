@@ -77,3 +77,6 @@ contextBridge.exposeInMainWorld('petBridge', {
     ipcRenderer.on('pet:displays', (e, geo) => cb(geo));
   },
 });
+
+contextBridge.exposeInMainWorld('dshPetAuthToken', process.env.DSH_PET_APP_TOKEN || '');
+

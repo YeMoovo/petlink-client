@@ -1136,6 +1136,7 @@ const SLEEP_ALLOWED_ACTIONS = [
 	"sleep",
 	"wake",
 	"home",
+	"hide-pet",
 	"set-display",
 	"reload",
 	"third-party"
@@ -2016,11 +2017,19 @@ async function sendChat(baseUrl, text, attachment) {
 	const raw = await res.json().catch(() => null);
 	if (!raw || typeof raw !== "object") throw new Error("dsh-pet: 对话响应非法");
 	const o = raw;
-	if (o.ok !== true) return {
-		ok: false,
-		reason: o.reason === "provider-missing" || o.reason === "generate-error" || o.reason === "config-error" ? o.reason : "bad-request",
-		message: typeof o.message === "string" ? o.message : void 0
-	};
+	if (o.ok !== true) {
+		const message = typeof o.message === "string" ? o.message : void 0;
+		if (message !== void 0 && message.includes("连不上桌宠桥")) return {
+			ok: false,
+			reason: "bridge-offline",
+			message
+		};
+		return {
+			ok: false,
+			reason: o.reason === "provider-missing" || o.reason === "generate-error" || o.reason === "config-error" ? o.reason : "bad-request",
+			message
+		};
+	}
 	return { ok: true };
 }
 
@@ -2042,11 +2051,42 @@ function bindDismiss(root, isClosed, onDismiss) {
 		document.removeEventListener("keydown", onKeyDown, true);
 	};
 }
-/** 回车发送：成功后回调、失败把原因写进 err 行，不伪造回复。 */
+/** 回车发送：成功后回调、失败把原因写进 err 行，不伪造回复。返回解绑函数。 */
 function bindSend(binding) {
 	let sending = false;
+	let blocked = false;
+	let cooldown;
+	const stopCooldown = () => {
+		if (cooldown !== void 0) {
+			clearInterval(cooldown);
+			cooldown = void 0;
+		}
+		blocked = false;
+		binding.input.disabled = false;
+		binding.err.style.display = "none";
+	};
+	/** 断桥：输入框置灰 15 秒并倒计时，期间不允许继续发。 */
+	const startCooldown = (message) => {
+		if (blocked) return;
+		blocked = true;
+		binding.input.disabled = true;
+		binding.err.style.display = "block";
+		let left = 15;
+		const tick = () => {
+			if (left <= 0) {
+				stopCooldown();
+				binding.err.textContent = "可以重试了";
+				binding.err.style.display = "block";
+				return;
+			}
+			binding.err.textContent = `连接断开：${message ?? "桌宠桥不可达"}（${left}s 后可重试）`;
+			left -= 1;
+		};
+		tick();
+		cooldown = setInterval(tick, 1e3);
+	};
 	const doSend = () => {
-		if (binding.isClosed() || sending) return;
+		if (binding.isClosed() || sending || blocked) return;
 		if (binding.isEncoding()) {
 			binding.notify("图片还在处理，稍等一下");
 			return;
@@ -2060,22 +2100,30 @@ function bindSend(binding) {
 			else {
 				binding.err.textContent = "对话失败：" + (state.message ?? state.reason);
 				binding.err.style.display = "block";
+				if (state.reason === "bridge-offline") startCooldown(state.message);
 			}
 		}).catch((e) => {
 			binding.err.textContent = "对话异常：" + String(e && e.message ? e.message : e);
 			binding.err.style.display = "block";
 		}).finally(() => {
 			sending = false;
-			binding.input.disabled = false;
-			if (!binding.isClosed()) binding.input.focus();
+			if (!blocked) {
+				binding.input.disabled = false;
+				if (!binding.isClosed()) binding.input.focus();
+			}
 		});
 	};
-	binding.input.addEventListener("keydown", (e) => {
+	const onKeyDown = (e) => {
 		if (e.key === "Enter") {
 			e.preventDefault();
 			doSend();
 		}
-	});
+	};
+	binding.input.addEventListener("keydown", onKeyDown);
+	return () => {
+		binding.input.removeEventListener("keydown", onKeyDown);
+		if (cooldown !== void 0) clearInterval(cooldown);
+	};
 }
 function mountChatDialog(opts) {
 	injectChatCss();
@@ -2098,17 +2146,19 @@ function mountChatDialog(opts) {
 	};
 	let closed = false;
 	let unbindDismiss = () => {};
+	let unbindSend = () => {};
 	const close = () => {
 		if (closed) return;
 		closed = true;
 		unbindDismiss();
+		unbindSend();
 		dom.dispose();
 		dom.clearAttach();
 		root.remove();
 		if (onClose) onClose();
 	};
 	unbindDismiss = bindDismiss(root, () => closed, close);
-	bindSend({
+	unbindSend = bindSend({
 		input,
 		err,
 		url: withPet,
@@ -3885,6 +3935,9 @@ function subscribeVoiceState(listener) {
 function setVoiceBase(base) {
 	if (typeof base === "string" && base) voiceBase = base;
 }
+function markVoicePending() {
+	setVoiceState("loading");
+}
 function setSurface(next) {
 	if (next === "web" || next === "desktop") surface = next;
 }
@@ -4136,6 +4189,7 @@ exports.isTypingTarget = isTypingTarget
 exports.isWebVisible = isWebVisible
 exports.landingSquash = landingSquash
 exports.loadTodos = loadTodos
+exports.markVoicePending = markVoicePending
 exports.memeImageUrl = memeImageUrl
 exports.memeThumbUrl = memeThumbUrl
 exports.metaLabel = metaLabel
